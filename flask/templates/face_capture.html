@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+{% block title %}Face Capture - AI Attendance System{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-white">
+        <h1 class="text-3xl font-bold">Face Capture Setup</h1>
+        <p class="text-blue-100 mt-2">Capture your face for AI-powered attendance recognition</p>
+    </div>
+
+    <!-- Instructions -->
+    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+        <h2 class="text-xl font-bold text-yellow-800 mb-4">
+            <i class="fas fa-exclamation-triangle mr-2"></i>Important Instructions
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-yellow-700">
+            <div>
+                <h3 class="font-semibold mb-2">Face Requirements:</h3>
+                <ul class="space-y-1">
+                    <li>• Full face must be clearly visible</li>
+                    <li>• No sunglasses or heavy glasses</li>
+                    <li>• Remove face coverings (masks, scarves)</li>
+                    <li>• Look directly at the camera</li>
+                    <li>• Neutral expression recommended</li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-2">Lighting Requirements:</h3>
+                <ul class="space-y-1">
+                    <li>• Good, even lighting (not too bright/dark)</li>
+                    <li>• Avoid strong shadows on face</li>
+                    <li>• Natural lighting preferred</li>
+                    <li>• No backlighting</li>
+                    <li>• Ensure eyes are clearly visible</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Capture Methods -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Camera Capture -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-2 border-blue-200">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">
+                <i class="fas fa-camera text-blue-600 mr-2"></i>Camera Capture
+            </h3>
+            <p class="text-gray-600 mb-4">Use your device's camera to capture your face in real-time.</p>
+            
+            <div id="camera-container" class="mb-4">
+                <video id="camera-feed" class="w-full h-64 bg-gray-100 rounded-lg" autoplay playsinline></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+            </div>
+            
+            <div class="space-y-3">
+                <button id="start-camera" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                    <i class="fas fa-play mr-2"></i>Start Camera
+                </button>
+                <button id="capture-photo" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 hidden">
+                    <i class="fas fa-camera mr-2"></i>Capture Photo
+                </button>
+                <button id="stop-camera" class="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 hidden">
+                    <i class="fas fa-stop mr-2"></i>Stop Camera
+                </button>
+            </div>
+            
+            <div id="camera-status" class="mt-4 p-3 rounded-lg hidden">
+                <p class="text-sm font-medium"></p>
+            </div>
+        </div>
+
+        <!-- Upload Capture -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-2 border-green-200">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">
+                <i class="fas fa-upload text-green-600 mr-2"></i>Upload Photo
+            </h3>
+            <p class="text-gray-600 mb-4">Upload a clear photo of your face from your device.</p>
+            
+            <div class="space-y-4">
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                    <input type="file" id="photo-upload" accept="image/*" class="hidden">
+                    <label for="photo-upload" class="cursor-pointer">
+                        <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-2"></i>
+                        <p class="text-gray-600">Click to select photo or drag and drop</p>
+                        <p class="text-sm text-gray-500">Supports JPG, PNG, GIF</p>
+                    </label>
+                </div>
+                
+                <div id="upload-preview" class="hidden">
+                    <img id="preview-image" class="w-full h-64 object-cover rounded-lg" alt="Preview">
+                </div>
+                
+                <button id="upload-photo" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 hidden">
+                    <i class="fas fa-check mr-2"></i>Use This Photo
+                </button>
+            </div>
+            
+            <div id="upload-status" class="mt-4 p-3 rounded-lg hidden">
+                <p class="text-sm font-medium"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Validation -->
+    <div id="quality-check" class="bg-white rounded-xl shadow-lg p-6 hidden">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-check-circle text-blue-600 mr-2"></i>Quality Check
+        </h3>
+        <div id="quality-results" class="space-y-3">
+            <!-- Quality check results will be displayed here -->
+        </div>
+    </div>
+
+    <!-- Submit Section -->
+    <div id="submit-section" class="bg-white rounded-xl shadow-lg p-6 hidden">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-save text-green-600 mr-2"></i>Save Face Data
+        </h3>
+        <p class="text-gray-600 mb-4">Your face data will be used for attendance recognition. Make sure the quality is good.</p>
+        
+        <div class="flex space-x-4">
+            <button id="save-face-data" class="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition duration-200">
+                <i class="fas fa-save mr-2"></i>Save Face Data
+            </button>
+            <button id="retry-capture" class="bg-gray-600 text-white py-2 px-6 rounded-lg hover:bg-gray-700 transition duration-200">
+                <i class="fas fa-redo mr-2"></i>Try Again
+            </button>
+        </div>
+    </div>
+
+    <!-- Current Face Data -->
+    <div id="current-face-data" class="bg-white rounded-xl shadow-lg p-6">
+        <h3 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-user-circle text-purple-600 mr-2"></i>Current Face Data
+        </h3>
+        <div id="face-data-status" class="text-center py-8">
+            <i class="fas fa-spinner fa-spin text-2xl text-gray-400 mb-2"></i>
+            <p class="text-gray-500">Checking current face data...</p>
+        </div>
+        <div id="save-image-section" class="mt-4 text-center hidden">
+            <div class="flex justify-center space-x-4">
+                <button id="download-face-image" class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-200">
+                    <i class="fas fa-download mr-2"></i>Save Image to Device
+                </button>
+                <button id="update-face-image" class="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700 transition duration-200">
+                    <i class="fas fa-sync mr-2"></i>Update Face Photo
+                </button>
+            </div>
+            <div id="download-status" class="mt-2"></div>
+        </div>
+    </div>
+</div>
+
+<!-- External JavaScript -->
+<script src="{{ url_for('static', filename='js/face_capture.js') }}"></script>
+{% endblock %}

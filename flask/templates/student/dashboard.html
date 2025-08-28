@@ -1,0 +1,199 @@
+{% extends "layout.html" %}
+{% block title %}Student Dashboard - AI Attendance System{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Welcome Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl p-6 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold">Welcome, {{ student.student_name }}!</h1>
+                <p class="text-blue-100 mt-2">Student Dashboard</p>
+            </div>
+            <div class="text-right">
+                <p class="text-blue-100">Today's Date</p>
+                <p class="text-2xl font-bold">August 28, 2025</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Info Card -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center space-x-6">
+            <div class="h-20 w-20 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                {% if student.face_data and student.face_data.exists %}
+                <img src="{{ url_for('serve_face', filename='user_' + student.id|string + '.jpg') }}" alt="Profile Photo" class="h-full w-full object-cover">
+                {% else %}
+                <i class="fas fa-user-graduate text-blue-600 text-3xl"></i>
+                {% endif %}
+            </div>
+            <div class="flex-1">
+                <h2 class="text-2xl font-bold text-gray-900">{{ student.student_name }}</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Roll Number</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ student.roll_number or 'Not assigned' }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Class</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ student.class_name }}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Student ID</p>
+                        <p class="text-lg font-semibold text-gray-900">#{{ student.id }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Total Days -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                    <i class="fas fa-calendar text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Days</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ stats.total_days or 0 }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Present Days -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100 text-green-600">
+                    <i class="fas fa-check-circle text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Present Days</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ stats.present_days or 0 }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Rate -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                    <i class="fas fa-percentage text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Attendance Rate</p>
+                    <p class="text-2xl font-bold text-gray-900">
+                        {% if stats.total_days and stats.total_days > 0 %}
+                            {{ ((stats.present_days or 0) / stats.total_days * 100) | round(1) }}%
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Attendance -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">Recent Attendance</h2>
+            <a href="{{ url_for('student_attendance') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                View All <i class="fas fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+        
+        {% if attendance_records %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for record in attendance_records %}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <i class="fas fa-calendar text-gray-400 mr-2"></i>
+                                <span class="text-sm font-medium text-gray-900">{{ record.date }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <i class="fas fa-clock text-gray-400 mr-2"></i>
+                                <span class="text-sm text-gray-900">{{ record.time }}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if record.status == 'present' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <i class="fas fa-check-circle mr-1"></i>Present
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                <i class="fas fa-times-circle mr-1"></i>Absent
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <i class="fas fa-calendar-times text-gray-400 text-4xl mb-4"></i>
+            <p class="text-gray-500">No attendance records yet</p>
+            <p class="text-sm text-gray-400">Your attendance will appear here once marked by your teacher</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <a href="{{ url_for('student_attendance') }}" class="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition duration-200">
+                <i class="fas fa-calendar-check text-blue-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">View Attendance</p>
+                    <p class="text-sm text-gray-600">Check your records</p>
+                </div>
+            </a>
+            
+            <a href="#" class="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition duration-200">
+                <i class="fas fa-chart-line text-green-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">Attendance Report</p>
+                    <p class="text-sm text-gray-600">View analytics</p>
+                </div>
+            </a>
+            
+            <a href="{{ url_for('face_capture') }}" class="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition duration-200">
+                <i class="fas fa-camera text-purple-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">Update Face Photo</p>
+                    <p class="text-sm text-gray-600">Manage your face data</p>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Attendance Chart Placeholder -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Attendance Overview</h2>
+        <div class="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+            <div class="text-center">
+                <i class="fas fa-chart-bar text-gray-400 text-4xl mb-4"></i>
+                <p class="text-gray-500">Attendance chart will be displayed here</p>
+                <p class="text-sm text-gray-400">Visual representation of your attendance pattern</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

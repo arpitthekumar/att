@@ -1,0 +1,200 @@
+{% extends "layout.html" %}
+{% block title %}Teacher Dashboard - AI Attendance System{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Welcome Header -->
+    <div class="bg-gradient-to-r from-green-600 to-teal-600 rounded-xl p-6 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold">Welcome, {{ session.name }}!</h1>
+                <p class="text-green-100 mt-2">Teacher Dashboard</p>
+            </div>
+            <div class="text-right">
+                <p class="text-green-100">Today's Date</p>
+                <p class="text-2xl font-bold">August 28, 2025</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- My Classes -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100 text-green-600">
+                    <i class="fas fa-chalkboard text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">My Classes</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ classes|length }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Students -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                    <i class="fas fa-user-graduate text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Total Students</p>
+                    <p class="text-2xl font-bold text-gray-900">
+                        {% set total_students = classes|sum(attribute='student_count') %}
+                        {{ total_students }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Attendance -->
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                    <i class="fas fa-calendar-check text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Today's Attendance</p>
+                    <p class="text-2xl font-bold text-gray-900">{{ today_attendance }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- My Classes -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-gray-900">My Classes</h2>
+            <a href="#" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition duration-200">
+                <i class="fas fa-plus mr-2"></i>Request New Class
+            </a>
+        </div>
+        
+        {% if classes %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for class in classes %}
+            <div class="bg-gray-50 rounded-lg p-6 border border-gray-200 hover:shadow-md transition duration-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-900">{{ class.name }}</h3>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Active
+                    </span>
+                </div>
+                
+                <div class="space-y-3 mb-4">
+                    <div class="flex items-center text-sm text-gray-600">
+                        <i class="fas fa-users mr-2"></i>
+                        <span>{{ class.student_count }} students</span>
+                    </div>
+                    <div class="flex items-center text-sm text-gray-600">
+                        <i class="fas fa-calendar mr-2"></i>
+                        <span>Created {{ class.created_at.split(' ')[0] }}</span>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-2">
+                    <a href="{{ url_for('teacher_attendance', class_id=class.id) }}" 
+                       class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                        <i class="fas fa-camera mr-1"></i>Take Attendance
+                    </a>
+                    <a href="{{ url_for('teacher_reports', class_id=class.id) }}" 
+                       class="flex-1 bg-green-600 hover:bg-green-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                        <i class="fas fa-chart-bar mr-1"></i>Reports
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="mx-auto h-24 w-24 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-chalkboard text-gray-400 text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">No classes assigned yet</h3>
+            <p class="text-gray-500 mb-6">Contact the administrator to get assigned to classes.</p>
+            <a href="#" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition duration-200">
+                <i class="fas fa-plus mr-2"></i>Request Class Assignment
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <a href="#" class="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition duration-200">
+                <i class="fas fa-camera text-blue-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">Take Attendance</p>
+                    <p class="text-sm text-gray-600">Start face recognition</p>
+                </div>
+            </a>
+            
+            <a href="#" class="flex items-center p-4 bg-green-50 rounded-lg hover:bg-green-100 transition duration-200">
+                <i class="fas fa-chart-bar text-green-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">View Reports</p>
+                    <p class="text-sm text-gray-600">Attendance analytics</p>
+                </div>
+            </a>
+            
+            <a href="#" class="flex items-center p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition duration-200">
+                <i class="fas fa-download text-purple-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">Export Data</p>
+                    <p class="text-sm text-gray-600">Download reports</p>
+                </div>
+            </a>
+            
+            <a href="#" class="flex items-center p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition duration-200">
+                <i class="fas fa-cog text-orange-600 text-xl mr-3"></i>
+                <div>
+                    <p class="font-medium text-gray-900">Settings</p>
+                    <p class="text-sm text-gray-600">Account preferences</p>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">Recent Activity</h2>
+        <div class="space-y-4">
+            <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                <div class="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center mr-4">
+                    <i class="fas fa-calendar-check text-green-600"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900">Attendance session completed</p>
+                    <p class="text-sm text-gray-500">Class 10A - 15 students marked present</p>
+                </div>
+                <div class="text-sm text-gray-500">2 hours ago</div>
+            </div>
+            
+            <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-4">
+                    <i class="fas fa-download text-blue-600"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900">Report exported</p>
+                    <p class="text-sm text-gray-500">Weekly attendance report for Class 10A</p>
+                </div>
+                <div class="text-sm text-gray-500">1 day ago</div>
+            </div>
+            
+            <div class="flex items-center p-4 bg-gray-50 rounded-lg">
+                <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center mr-4">
+                    <i class="fas fa-user-plus text-purple-600"></i>
+                </div>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-900">New student added</p>
+                    <p class="text-sm text-gray-500">John Doe assigned to Class 10A</p>
+                </div>
+                <div class="text-sm text-gray-500">3 days ago</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

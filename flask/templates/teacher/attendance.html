@@ -1,0 +1,199 @@
+{% extends "layout.html" %}
+{% block title %}Class Attendance - {{ class_data.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6" data-class-id="{{ class_data.id }}" data-class-name="{{ class_data.name }}">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-green-600 to-blue-600 rounded-xl p-6 text-white">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold">{{ class_data.name }} - Attendance</h1>
+                <p class="text-green-100 mt-2">Date: {{ today.strftime('%B %d, %Y') }}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-green-100">Total Students</p>
+                <p class="text-3xl font-bold">{{ students|length }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-green-100 text-green-600">
+                    <i class="fas fa-check-circle text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Present</p>
+                    <p class="text-2xl font-bold text-gray-900" id="present-count">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-red-100 text-red-600">
+                    <i class="fas fa-times-circle text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Absent</p>
+                    <p class="text-2xl font-bold text-gray-900" id="absent-count">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                    <i class="fas fa-clock text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Late</p>
+                    <p class="text-2xl font-bold text-gray-900" id="late-count">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+            <div class="flex items-center">
+                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                    <i class="fas fa-percentage text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-600">Attendance Rate</p>
+                    <p class="text-2xl font-bold text-gray-900" id="attendance-rate">0%</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Face Recognition Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-camera text-blue-600 mr-2"></i>Face Recognition Attendance
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Camera Feed -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Camera Feed</h3>
+                <div class="relative">
+                    <video id="camera-feed" class="w-full h-64 bg-gray-100 rounded-lg" autoplay playsinline></video>
+                    <canvas id="camera-canvas" class="hidden"></canvas>
+                    
+                    <!-- Face Detection Overlay -->
+                    <div id="face-overlay" class="absolute inset-0 pointer-events-none">
+                        <div id="face-box" class="border-2 border-green-500 rounded-lg hidden"></div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 space-y-2">
+                    <button id="start-camera" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                        <i class="fas fa-play mr-2"></i>Start Camera
+                    </button>
+                    <button id="stop-camera" class="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 hidden">
+                        <i class="fas fa-stop mr-2"></i>Stop Camera
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recognition Status -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Recognition Status</h3>
+                <div id="recognition-status" class="bg-gray-50 rounded-lg p-4 min-h-64">
+                    <div class="text-center text-gray-500">
+                        <i class="fas fa-user-slash text-4xl mb-2"></i>
+                        <p>No face detected</p>
+                        <p class="text-sm">Position your face in front of the camera</p>
+                    </div>
+                </div>
+                
+                <div class="mt-3">
+                    <button id="mark-attendance" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-check mr-2"></i>Mark Attendance
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student List -->
+    <div class="bg-white rounded-xl shadow-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">Student List</h2>
+            <div class="flex space-x-2">
+                <button id="export-attendance" class="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                    <i class="fas fa-download mr-2"></i>Export
+                </button>
+                <button id="refresh-attendance" class="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-refresh mr-2"></i>Refresh
+                </button>
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200" id="student-list">
+                    {% for student in students %}
+                    <tr class="student-row" data-student-id="{{ student.id }}" data-student-name="{{ student.name }}" data-roll-number="{{ student.roll_number or 'N/A' }}">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <i class="fas fa-user text-blue-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-medium text-gray-900">{{ student.name }}</div>
+                                    <div class="text-sm text-gray-500">{{ student.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {{ student.roll_number or 'N/A' }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="attendance-status px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                Not Marked
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 attendance-time">
+                            -
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <div class="flex space-x-2">
+                                <button type="button" class="mark-present text-green-600 hover:text-green-900" onclick="markAttendance('{{ student.id }}', 'present')">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button type="button" class="mark-absent text-red-600 hover:text-red-900" onclick="markAttendance('{{ student.id }}', 'absent')">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                <button type="button" class="mark-late text-yellow-600 hover:text-yellow-900" onclick="markAttendance('{{ student.id }}', 'late')">
+                                    <i class="fas fa-clock"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden data for JavaScript -->
+<script id="existing-attendance-data" type="application/json">
+{{ attendance|tojson if attendance else '[]' }}
+</script>
+
+<!-- External JavaScript -->
+<script src="{{ url_for('static', filename='js/attendance.js') }}"></script>
+{% endblock %}

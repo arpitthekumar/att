@@ -1,0 +1,152 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-xl shadow-lg p-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="mx-auto h-16 w-16 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-user-plus text-white text-2xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900">
+                {% if student %}Edit Student{% else %}Register New Student{% endif %}
+            </h1>
+            <p class="text-gray-600 mt-2">
+                {% if student %}Update student information{% else %}Add a new student to the attendance system{% endif %}
+            </p>
+        </div>
+
+        <!-- Registration Form -->
+        <form method="POST" class="space-y-6">
+            <!-- Student Name -->
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-user mr-2"></i>Full Name *
+                </label>
+                <input 
+                    type="text" 
+                    id="name" 
+                    name="name" 
+                    value="{{ student.name if student else '' }}"
+                    required 
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                    placeholder="Enter student's full name"
+                >
+            </div>
+
+            <!-- Roll Number -->
+            <div>
+                <label for="roll" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-id-card mr-2"></i>Roll Number
+                </label>
+                <input 
+                    type="text" 
+                    id="roll" 
+                    name="roll" 
+                    value="{{ student.roll if student else '' }}"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                    placeholder="Enter roll number (optional)"
+                >
+            </div>
+
+            <!-- Class -->
+            <div>
+                <label for="class_name" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-graduation-cap mr-2"></i>Class
+                </label>
+                <input 
+                    type="text" 
+                    id="class_name" 
+                    name="class_name" 
+                    value="{{ student.class_name if student else '' }}"
+                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200"
+                    placeholder="Enter class name (optional)"
+                >
+            </div>
+
+            <!-- Camera Instructions -->
+            {% if not student %}
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div class="flex items-start">
+                    <i class="fas fa-camera text-blue-600 mt-1 mr-3"></i>
+                    <div>
+                        <h3 class="text-sm font-medium text-blue-900 mb-1">Face Capture</h3>
+                        <p class="text-sm text-blue-700">
+                            After submitting this form, your camera will activate to capture the student's face for recognition.
+                            Make sure the student is well-lit and facing the camera directly.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-between pt-6">
+                <a href="{{ url_for('students') }}" 
+                   class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition duration-200">
+                    <i class="fas fa-arrow-left mr-2"></i>Cancel
+                </a>
+                
+                <button 
+                    type="submit" 
+                    class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-8 py-3 rounded-lg font-medium hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 transform hover:scale-105"
+                >
+                    {% if student %}
+                        <i class="fas fa-save mr-2"></i>Update Student
+                    {% else %}
+                        <i class="fas fa-user-plus mr-2"></i>Register Student
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+
+        <!-- Tips -->
+        <div class="mt-8 bg-gray-50 rounded-lg p-4">
+            <h3 class="text-sm font-medium text-gray-900 mb-2">Tips for better face recognition:</h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-0.5"></i>
+                    Ensure good lighting on the face
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-0.5"></i>
+                    Remove glasses or hats if possible
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-0.5"></i>
+                    Face the camera directly
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-0.5"></i>
+                    Keep a neutral expression
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Add form validation and interactive effects
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form');
+        const nameInput = document.getElementById('name');
+        
+        // Add loading state to form submission
+        form.addEventListener('submit', function() {
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Processing...';
+            submitBtn.disabled = true;
+        });
+        
+        // Add focus effects
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('scale-105');
+            });
+            input.addEventListener('blur', function() {
+                this.parentElement.classList.remove('scale-105');
+            });
+        });
+    });
+</script>
+{% endblock %}

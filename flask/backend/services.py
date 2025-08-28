@@ -1,0 +1,422 @@
+from datetime import datetime, date
+from .database import Database
+from .models import User, Class, ClassAssignment, Attendance, ClassRequest, UserActivity
+from .face_recognition import FaceRecognition
+import cv2
+import numpy as np
+from PIL import Image
+import io
+import base64
+
+class UserService:
+    def __init__(self):
+        self.db = Database()
+        self.user_model = User(self.db)
+        self.face_recognition = FaceRecognition()
+        self.activity_model = UserActivity(self.db)
+    
+    def create_user(self, username, password, email, name, role):
+        """Create a new user"""
+        return self.user_model.create(username, password, email, name, role)
+    
+    def get_user_by_username(self, username):
+        """Get user by username"""
+        return self.user_model.get_by_username(username)
+    
+    def get_user_by_id(self, user_id):
+        """Get user by ID"""
+        return self.user_model.get_by_id(user_id)
+    
+    def get_all_users(self, role=None):
+        """Get all users, optionally filtered by role"""
+        return self.user_model.get_all(role)
+    
+    def capture_user_face(self, user_id, method='camera', image_data=None):
+        """Capture face data for a user with quality validation"""
+        return self.face_recognition.capture_face(user_id, method, image_data)
+    
+    def validate_face_quality(self, image_data):
+        """Validate face quality from image data"""
+        try:
+            # Decode base64 image data
+            if image_data.startswith('data:image'):
+                image_data = image_data.split(',')[1]
+            
+            image_bytes = base64.b64decode(image_data)
+            image = Image.open(io.BytesIO(image_bytes))
+            opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            
+            return self.face_recognition.validate_face_quality(opencv_image)
+        except Exception as e:
+            return False, f"Error validating image: {str(e)}"
+    
+    def get_face_data_info(self, user_id):
+        """Get information about user's face data"""
+        return self.face_recognition.get_face_data_info(user_id)
+    
+    def has_face_data(self, user_id):
+        """Check if user has face data"""
+        return self.face_recognition.has_face_data(user_id)
+    
+    def get_user_activity(self, user_id, limit=50):
+        """Get activity for a specific user"""
+        return self.activity_model.get_user_activity(user_id, limit)
+
+class ClassService:
+    def __init__(self):
+        self.db = Database()
+        self.class_model = Class(self.db)
+        self.assignment_model = ClassAssignment(self.db)
+    
+    def create_class(self, name, description=""):
+        """Create a new class"""
+        return self.class_model.create(name, description)
+    
+    def get_all_classes(self):
+        """Get all classes with teacher names and student counts"""
+        classes = self.class_model.get_all()
+        
+        # Convert sqlite3.Row objects to dictionaries and enhance with additional data
+        enhanced_classes = []
+        for class_data in classes:
+            # Convert to dict
+            class_dict = dict(class_data)
+            
+            # Get teacher name
+            teachers = self.get_class_teachers(class_dict['id'])
+            if teachers:
+                class_dict['teacher_name'] = teachers[0]['name']
+            else:
+                class_dict['teacher_name'] = None
+            
+            # Get student count
+            students = self.get_class_students(class_dict['id'])
+            class_dict['student_count'] = len(students)
+            
+            enhanced_classes.append(class_dict)
+        
+        return enhanced_classes
+    
+    def get_class_by_id(self, class_id):
+        """Get class by ID"""
+        return self.class_model.get_by_id(class_id)
+    
+    def get_class_teachers(self, class_id):
+        """Get all teachers assigned to a class"""
+        return self.class_model.get_teachers(class_id)
+    
+    def get_class_students(self, class_id):
+        """Get all students in a class"""
+        students = self.class_model.get_students(class_id)
+        
+        # Convert sqlite3.Row objects to dictionaries
+        formatted_students = []
+        for student in students:
+            student_dict = dict(student)
+            formatted_students.append(student_dict)
+        
+        return formatted_students
+    
+    def assign_teacher_to_class(self, user_id, class_id):
+        """Assign a teacher to a class"""
+        return self.assignment_model.assign_teacher(user_id, class_id)
+    
+    def assign_student_to_class(self, user_id, class_id, roll_number):
+        """Assign a student to a class with roll number"""
+        return self.assignment_model.assign_student(user_id, class_id, roll_number)
+    
+    def get_user_classes(self, user_id, role):
+        """Get all classes for a user based on their role"""
+        classes = self.assignment_model.get_user_classes(user_id, role)
+        
+        # Convert sqlite3.Row objects to dictionaries
+        formatted_classes = []
+        for class_item in classes:
+            class_dict = dict(class_item)
+            formatted_classes.append(class_dict)
+        
+        return formatted_classes
+
+class AttendanceService:
+    def __init__(self):
+        self.db = Database()
+        self.attendance_model = Attendance(self.db)
+        self.face_recognition = FaceRecognition()
+    
+    def mark_attendance(self, user_id, class_id, date, status, marked_by):
+        """Mark attendance for a student"""
+        return self.attendance_model.mark_attendance(user_id, class_id, date, status, marked_by)
+    
+    def get_class_attendance(self, class_id, date):
+        """Get attendance for a class on a specific date"""
+        attendance_records = self.attendance_model.get_class_attendance(class_id, date)
+        
+        # Convert sqlite3.Row objects to dictionaries
+        formatted_records = []
+        for record in attendance_records:
+            record_dict = dict(record)
+            
+            # Format date and time if marked_at exists
+            if 'marked_at' in record_dict and record_dict['marked_at']:
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(record_dict['marked_at'].replace('Z', '+00:00'))
+                    record_dict['date'] = dt.strftime('%Y-%m-%d')
+                    record_dict['time'] = dt.strftime('%H:%M')
+                except:
+                    record_dict['date'] = str(record_dict.get('date', ''))
+                    record_dict['time'] = 'N/A'
+            else:
+                record_dict['date'] = str(record_dict.get('date', ''))
+                record_dict['time'] = 'N/A'
+            
+            formatted_records.append(record_dict)
+        
+        return formatted_records
+    
+    def get_student_attendance(self, user_id, class_id=None):
+        """Get attendance records for a student with formatted data"""
+        records = self.attendance_model.get_student_attendance(user_id, class_id)
+        
+        # Convert sqlite3.Row objects to dictionaries and format data
+        formatted_records = []
+        for record in records:
+            record_dict = dict(record)
+            
+            # Format date and time
+            if 'marked_at' in record_dict and record_dict['marked_at']:
+                # Parse the timestamp and format it
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(record_dict['marked_at'].replace('Z', '+00:00'))
+                    record_dict['date'] = dt.strftime('%Y-%m-%d')
+                    record_dict['time'] = dt.strftime('%H:%M')
+                except:
+                    record_dict['date'] = str(record_dict.get('date', ''))
+                    record_dict['time'] = 'N/A'
+            else:
+                record_dict['date'] = str(record_dict.get('date', ''))
+                record_dict['time'] = 'N/A'
+            
+            formatted_records.append(record_dict)
+        
+        return formatted_records
+    
+    def mark_attendance_with_face(self, user_id, class_id, marked_by):
+        """Mark attendance using face recognition with strict validation"""
+        # First verify the user has face data
+        if not self.face_recognition.has_face_data(user_id):
+            return False, "No face data found for this user. Please capture face data first."
+        
+        # Check if attendance already marked for today
+        today = date.today()
+        existing_attendance = self.get_student_attendance(user_id, class_id)
+        for record in existing_attendance:
+            if record['date'] == today:
+                return False, "Attendance already marked for today"
+        
+        # Perform face recognition with strict validation
+        success, message = self.face_recognition.recognize_face(user_id, max_attempts=3)
+        
+        if success:
+            # Mark attendance if face recognition succeeds
+            attendance_id = self.mark_attendance(user_id, class_id, today, 'present', marked_by)
+            if attendance_id:
+                return True, "Attendance marked successfully with face recognition"
+            else:
+                return False, "Failed to mark attendance in database"
+        else:
+            return False, f"Face recognition failed: {message}. Please try again."
+    
+    def mark_attendance_manual(self, user_id, class_id, status, marked_by):
+        """Mark attendance manually (for teachers/admins)"""
+        today = date.today()
+        
+        # Check if attendance already marked for today
+        existing_attendance = self.get_student_attendance(user_id, class_id)
+        for record in existing_attendance:
+            if record['date'] == today:
+                return False, "Attendance already marked for today"
+        
+        attendance_id = self.mark_attendance(user_id, class_id, today, status, marked_by)
+        if attendance_id:
+            return True, f"Attendance marked as {status}"
+        else:
+            return False, "Failed to mark attendance"
+    
+    def get_attendance_stats(self, user_id, class_id=None):
+        """Get attendance statistics for a student"""
+        attendance_records = self.get_student_attendance(user_id, class_id)
+        
+        total_days = len(attendance_records)
+        present_days = len([r for r in attendance_records if r['status'] == 'present'])
+        
+        if total_days > 0:
+            attendance_rate = (present_days / total_days) * 100
+        else:
+            attendance_rate = 0
+        
+        return {
+            'total_days': total_days,
+            'present_days': present_days,
+            'absent_days': total_days - present_days,
+            'attendance_rate': round(attendance_rate, 2)
+        }
+
+class ClassRequestService:
+    def __init__(self):
+        self.db = Database()
+        self.request_model = ClassRequest(self.db)
+    
+    def create_class_request(self, teacher_id, class_name, description):
+        """Create a new class request"""
+        return self.request_model.create_request(teacher_id, class_name, description)
+    
+    def get_pending_requests(self):
+        """Get all pending class requests"""
+        return self.request_model.get_pending_requests()
+    
+    def approve_request(self, request_id, reviewed_by):
+        """Approve a class request"""
+        return self.request_model.approve_request(request_id, reviewed_by)
+    
+    def reject_request(self, request_id, reviewed_by):
+        """Reject a class request"""
+        return self.request_model.reject_request(request_id, reviewed_by)
+
+class ActivityService:
+    def __init__(self):
+        self.db = Database()
+        self.activity_model = UserActivity(self.db)
+    
+    def log_activity(self, user_id, activity_type, page_url=None, action_description=None, ip_address=None, user_agent=None):
+        """Log user activity"""
+        return self.activity_model.log_activity(
+            user_id=user_id,
+            activity_type=activity_type,
+            page_url=page_url,
+            action_description=action_description,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+    
+    def get_recent_activity(self, hours=24, role=None):
+        """Get recent activity across all users or filtered by role"""
+        return self.activity_model.get_recent_activity(hours, role)
+    
+    def get_active_users(self, hours=24):
+        """Get list of active users in the last N hours"""
+        return self.activity_model.get_active_users(hours)
+    
+    def get_teacher_activity(self, hours=24):
+        """Get teacher activity specifically"""
+        return self.activity_model.get_recent_activity(hours, 'teacher')
+    
+    def get_student_activity(self, hours=24):
+        """Get student activity specifically"""
+        return self.activity_model.get_recent_activity(hours, 'student')
+
+class DashboardService:
+    def __init__(self):
+        self.db = Database()
+        self.user_model = User(self.db)
+        self.class_model = Class(self.db)
+        self.attendance_model = Attendance(self.db)
+        self.activity_model = UserActivity(self.db)
+    
+    def get_admin_dashboard_data(self):
+        """Get data for admin dashboard"""
+        users = self.user_model.get_all()
+        classes = self.class_model.get_all()
+        
+        # Count by role
+        students = [u for u in users if u['role'] == 'student']
+        teachers = [u for u in users if u['role'] == 'teacher']
+        
+        # Get today's attendance
+        today = date.today()
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT COUNT(*) as today_attendance 
+            FROM attendance 
+            WHERE date = ? AND status = 'present'
+        ''', (today,))
+        today_attendance = cursor.fetchone()['today_attendance']
+        conn.close()
+        
+        # Get recent activity
+        recent_activity = self.activity_model.get_recent_activity(hours=24, role='teacher')
+        active_teachers = self.activity_model.get_active_users(hours=24)
+        
+        return {
+            'total_students': len(students),
+            'total_teachers': len(teachers),
+            'total_classes': len(classes),
+            'today_attendance': today_attendance,
+            'recent_activity': recent_activity[:10],  # Last 10 activities
+            'active_teachers': [u for u in active_teachers if u['role'] == 'teacher']
+        }
+    
+    def get_teacher_dashboard_data(self, teacher_id):
+        """Get data for teacher dashboard"""
+        # Get teacher's classes
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.*, COUNT(ca2.user_id) as student_count
+            FROM classes c 
+            JOIN class_assignments ca1 ON c.id = ca1.class_id 
+            LEFT JOIN class_assignments ca2 ON c.id = ca2.class_id AND ca2.role = 'student'
+            WHERE ca1.user_id = ? AND ca1.role = 'teacher'
+            GROUP BY c.id
+        ''', (teacher_id,))
+        classes = cursor.fetchall()
+        
+        # Get today's attendance for teacher's classes
+        today = date.today()
+        cursor.execute('''
+            SELECT COUNT(*) as today_attendance
+            FROM attendance a
+            JOIN class_assignments ca ON a.user_id = ca.user_id AND a.class_id = ca.class_id
+            WHERE ca.user_id IN (
+                SELECT ca2.user_id FROM class_assignments ca2 
+                WHERE ca2.class_id IN (
+                    SELECT ca3.class_id FROM class_assignments ca3 
+                    WHERE ca3.user_id = ? AND ca3.role = 'teacher'
+                ) AND ca2.role = 'student'
+            ) AND a.date = ? AND a.status = 'present'
+        ''', (teacher_id, today))
+        today_attendance = cursor.fetchone()['today_attendance']
+        conn.close()
+        
+        return {
+            'classes': classes,
+            'today_attendance': today_attendance
+        }
+    
+    def get_student_dashboard_data(self, student_id):
+        """Get data for student dashboard"""
+        # Get student's classes
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT c.* FROM classes c 
+            JOIN class_assignments ca ON c.id = ca.class_id 
+            WHERE ca.user_id = ? AND ca.role = 'student'
+        ''', (student_id,))
+        classes = cursor.fetchall()
+        conn.close()
+        
+        # Get attendance statistics
+        attendance_service = AttendanceService()
+        stats = attendance_service.get_attendance_stats(student_id)
+        
+        # Get recent attendance
+        recent_attendance = self.attendance_model.get_student_attendance(student_id)[:5]
+        
+        return {
+            'classes': classes,
+            'attendance_stats': stats,
+            'recent_attendance': recent_attendance
+        }

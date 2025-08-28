@@ -1,0 +1,401 @@
+{% extends "layout.html" %}
+{% block title %}Add User - AI Attendance System{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="space-y-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Add New User</h1>
+                <p class="text-gray-600 mt-2">Create a new user account</p>
+            </div>
+            <a href="{{ url_for('admin_users') }}" class="text-blue-600 hover:text-blue-800 font-medium">
+                <i class="fas fa-arrow-left mr-1"></i>Back to Users
+            </a>
+        </div>
+
+        <!-- Add User Form -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <form method="POST" class="space-y-6" id="add-user-form">
+                <!-- Basic Information -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                            <input type="text" id="name" name="name" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Enter full name">
+                        </div>
+                        <div>
+                            <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username *</label>
+                            <input type="text" id="username" name="username" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Enter username">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                        <input type="email" id="email" name="email"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="Enter email address">
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Security</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                            <input type="password" id="password" name="password" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Enter password">
+                        </div>
+                        <div>
+                            <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password *</label>
+                            <input type="password" id="confirm_password" name="confirm_password" required
+                                   class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Confirm password">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Role and Assignment -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Role & Assignment</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="role" class="block text-sm font-medium text-gray-700 mb-1">Role *</label>
+                            <select id="role" name="role" required
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select role</option>
+                                <option value="admin">Administrator</option>
+                                <option value="teacher">Teacher</option>
+                                <option value="student">Student</option>
+                            </select>
+                        </div>
+                        <div id="class-assignment" class="hidden">
+                            <label for="class_id" class="block text-sm font-medium text-gray-700 mb-1">Assign to Class</label>
+                            <select id="class_id" name="class_id"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="">Select class</option>
+                                {% for class in classes %}
+                                <option value="{{ class.id }}">{{ class.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student-specific fields -->
+                <div id="student-fields" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Student Information</h3>
+                    <div>
+                        <label for="roll_number" class="block text-sm font-medium text-gray-700 mb-1">Roll Number</label>
+                        <input type="text" id="roll_number" name="roll_number"
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                               placeholder="Enter roll number">
+                    </div>
+                </div>
+
+                <!-- Face Capture Section (for students) -->
+                <div id="face-capture-section" class="hidden">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">
+                        <i class="fas fa-camera text-blue-600 mr-2"></i>Face Capture Setup
+                    </h3>
+                    <p class="text-gray-600 mb-4">Students need to have their face captured for AI-powered attendance recognition.</p>
+                    
+                    <!-- Instructions -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+                        <h4 class="text-sm font-semibold text-yellow-800 mb-2">Important Instructions:</h4>
+                        <ul class="text-sm text-yellow-700 space-y-1">
+                            <li>• Full face must be clearly visible</li>
+                            <li>• Good, even lighting</li>
+                            <li>• No sunglasses or face coverings</li>
+                            <li>• Look directly at the camera</li>
+                        </ul>
+                    </div>
+
+                    <!-- Capture Methods -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Camera Capture -->
+                        <div class="border-2 border-blue-200 rounded-lg p-4">
+                            <h4 class="text-md font-semibold text-gray-900 mb-3">
+                                <i class="fas fa-camera text-blue-600 mr-2"></i>Camera Capture
+                            </h4>
+                            <div id="camera-container" class="mb-3">
+                                <video id="camera-feed" class="w-full h-48 bg-gray-100 rounded-lg" autoplay playsinline></video>
+                                <canvas id="camera-canvas" class="hidden"></canvas>
+                            </div>
+                            <div class="space-y-2">
+                                <button type="button" id="start-camera" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                                    <i class="fas fa-play mr-2"></i>Start Camera
+                                </button>
+                                <button type="button" id="capture-photo" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 hidden">
+                                    <i class="fas fa-camera mr-2"></i>Capture Photo
+                                </button>
+                                <button type="button" id="stop-camera" class="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 hidden">
+                                    <i class="fas fa-stop mr-2"></i>Stop Camera
+                                </button>
+                            </div>
+                            <div id="camera-status" class="mt-3 p-2 rounded-lg hidden">
+                                <p class="text-sm font-medium"></p>
+                            </div>
+                        </div>
+
+                        <!-- Upload Capture -->
+                        <div class="border-2 border-green-200 rounded-lg p-4">
+                            <h4 class="text-md font-semibold text-gray-900 mb-3">
+                                <i class="fas fa-upload text-green-600 mr-2"></i>Upload Photo
+                            </h4>
+                            <div class="space-y-3">
+                                <div class="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                    <input type="file" id="photo-upload" accept="image/*" class="hidden">
+                                    <label for="photo-upload" class="cursor-pointer">
+                                        <i class="fas fa-cloud-upload-alt text-2xl text-gray-400 mb-2"></i>
+                                        <p class="text-gray-600 text-sm">Click to select photo</p>
+                                    </label>
+                                </div>
+                                <div id="upload-preview" class="hidden">
+                                    <img id="preview-image" class="w-full h-48 object-cover rounded-lg" alt="Preview">
+                                </div>
+                                <button type="button" id="upload-photo" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 hidden">
+                                    <i class="fas fa-check mr-2"></i>Use This Photo
+                                </button>
+                            </div>
+                            <div id="upload-status" class="mt-3 p-2 rounded-lg hidden">
+                                <p class="text-sm font-medium"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quality Check -->
+                    <div id="quality-check" class="mt-4 p-4 rounded-lg hidden">
+                        <h4 class="text-md font-semibold text-gray-900 mb-2">Quality Check</h4>
+                        <div id="quality-results"></div>
+                    </div>
+
+                    <!-- Face Data Status -->
+                    <div id="face-data-status" class="mt-4 p-4 rounded-lg bg-gray-50">
+                        <div class="text-center">
+                            <i class="fas fa-info-circle text-2xl text-blue-500 mb-2"></i>
+                            <p class="text-blue-600 font-medium">Face Capture Required</p>
+                            <p class="text-sm text-gray-500">Please capture or upload a photo above to continue</p>
+                        </div>
+                    </div>
+
+                    <!-- Hidden input for face data -->
+                    <input type="hidden" id="face-data" name="face_data" value="">
+                </div>
+
+                <!-- Submit Buttons -->
+                <div class="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200">
+                    <a href="{{ url_for('admin_users') }}" 
+                       class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition duration-200">
+                        Cancel
+                    </a>
+                    <button type="submit" id="submit-btn"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled>
+                        <i class="fas fa-user-plus mr-2"></i>Create User
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Help Information -->
+        <div class="bg-blue-50 rounded-xl p-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-2">Help & Guidelines</h3>
+            <div class="space-y-2 text-sm text-blue-800">
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle mt-1 mr-2"></i>
+                    <span><strong>Administrators:</strong> Have full system access and can manage all users and classes.</span>
+                </div>
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle mt-1 mr-2"></i>
+                    <span><strong>Teachers:</strong> Can take attendance for their assigned classes and view reports.</span>
+                </div>
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle mt-1 mr-2"></i>
+                    <span><strong>Students:</strong> Can view their own attendance records and statistics. Face capture is required for AI attendance.</span>
+                </div>
+                <div class="flex items-start">
+                    <i class="fas fa-info-circle mt-1 mr-2"></i>
+                    <span><strong>Password:</strong> Must be at least 6 characters long for security.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- External JavaScript -->
+<script src="{{ url_for('static', filename='js/face_capture.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('role');
+    const classAssignment = document.getElementById('class-assignment');
+    const studentFields = document.getElementById('student-fields');
+    const faceCaptureSection = document.getElementById('face-capture-section');
+    const classSelect = document.getElementById('class_id');
+    const submitBtn = document.getElementById('submit-btn');
+    const faceDataInput = document.getElementById('face-data');
+    
+    // Show/hide fields based on role selection
+    roleSelect.addEventListener('change', function() {
+        const selectedRole = this.value;
+        
+        // Hide all conditional fields first
+        classAssignment.classList.add('hidden');
+        studentFields.classList.add('hidden');
+        faceCaptureSection.classList.add('hidden');
+        
+        // Show relevant fields based on role
+        if (selectedRole === 'student') {
+            classAssignment.classList.remove('hidden');
+            studentFields.classList.remove('hidden');
+            faceCaptureSection.classList.remove('hidden');
+            classSelect.required = true;
+            
+            // Disable submit button for students until face data is captured
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else if (selectedRole === 'teacher') {
+            // Teachers might be assigned to classes later
+            classAssignment.classList.remove('hidden');
+            classSelect.required = false;
+            
+            // Enable submit button for teachers
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            // Enable submit button for admins
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    });
+    
+    // Password confirmation validation
+    const password = document.getElementById('password');
+    const confirmPassword = document.getElementById('confirm_password');
+    
+    function validatePassword() {
+        if (password.value !== confirmPassword.value) {
+            confirmPassword.setCustomValidity('Passwords do not match');
+        } else {
+            confirmPassword.setCustomValidity('');
+        }
+    }
+    
+    password.addEventListener('change', validatePassword);
+    confirmPassword.addEventListener('keyup', validatePassword);
+    
+    // Form submission validation
+    const form = document.getElementById('add-user-form');
+    form.addEventListener('submit', function(e) {
+        if (password.value !== confirmPassword.value) {
+            e.preventDefault();
+            alert('Passwords do not match!');
+            return false;
+        }
+        
+        if (password.value.length < 6) {
+            e.preventDefault();
+            alert('Password must be at least 6 characters long!');
+            return false;
+        }
+        
+        // Check if student role requires face data
+        if (roleSelect.value === 'student') {
+            if (!faceDataInput.value) {
+                e.preventDefault();
+                alert('Face capture is required for students! Please capture or upload a photo.');
+                return false;
+            }
+        }
+    });
+    
+    // Override the saveFaceData function for form submission
+    const originalSaveFaceData = window.saveFaceData;
+    window.saveFaceData = function() {
+        if (window.capturedImageData) {
+            faceDataInput.value = window.capturedImageData;
+            showStatus('upload-status', 'Face data captured successfully!', 'success');
+            return true;
+        } else {
+            alert('No image data to save');
+            return false;
+        }
+    };
+    
+    // Function to update face data status
+    function updateFaceDataStatus(isReady, message = '') {
+        const faceDataStatus = document.getElementById('face-data-status');
+        if (faceDataStatus) {
+            if (isReady) {
+                faceDataStatus.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-check-circle text-3xl text-green-500 mb-2"></i>
+                        <p class="text-green-600 font-medium">Face Data Ready!</p>
+                        <p class="text-sm text-gray-500">${message || 'You can now submit the form'}</p>
+                    </div>
+                `;
+                faceDataStatus.className = 'mt-4 p-4 rounded-lg bg-green-50';
+                
+                // Enable submit button
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+            } else {
+                faceDataStatus.innerHTML = `
+                    <div class="text-center">
+                        <i class="fas fa-info-circle text-2xl text-blue-500 mb-2"></i>
+                        <p class="text-blue-600 font-medium">Face Capture Required</p>
+                        <p class="text-sm text-gray-500">Please capture or upload a photo above to continue</p>
+                    </div>
+                `;
+                faceDataStatus.className = 'mt-4 p-4 rounded-lg bg-gray-50';
+                
+                // Disable submit button
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+    }
+    
+    // Override the autoSaveFaceDataForForm function to update status
+    window.autoSaveFaceDataForForm = function() {
+        const faceDataInput = document.getElementById('face-data');
+        if (faceDataInput && window.capturedImageData) {
+            faceDataInput.value = window.capturedImageData;
+            
+            // Update face data status
+            updateFaceDataStatus(true, 'Face data captured and ready for form submission!');
+            
+            // Show success message
+            const statusElement = document.getElementById('upload-status') || document.getElementById('camera-status');
+            if (statusElement) {
+                showStatus(statusElement.id, 'Face data captured and ready for form submission!', 'success');
+            }
+            
+            console.log('Face data automatically saved to form input');
+        }
+    };
+    
+    // Initially disable submit button for students
+    if (roleSelect.value === 'student') {
+        updateFaceDataStatus(false);
+    }
+});
+</script>
+{% endblock %}
