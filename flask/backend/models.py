@@ -1,5 +1,95 @@
 from werkzeug.security import generate_password_hash, check_password_hash
 from .database import Database
+class AttendanceSession:
+    def __init__(self, db):
+        self.db = db
+
+    def create(self, class_id, teacher_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO attendance_sessions (class_id, teacher_id, date, status)
+            VALUES (?, ?, DATE('now'), 'In Progress')
+        ''', (class_id, teacher_id))
+        conn.commit()
+        session_id = cursor.lastrowid
+        conn.close()
+        return session_id
+
+    def finalize(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE attendance_sessions SET status = 'Finalized' WHERE id = ?
+        ''', (session_id,))
+        conn.commit()
+        conn.close()
+
+    def get_by_id(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM attendance_sessions WHERE id = ?', (session_id,))
+        session = cursor.fetchone()
+        conn.close()
+        return session
+
+class TemporaryAttendance:
+    def __init__(self, db):
+        self.db = db
+
+    def mark(self, session_id, student_id, status, recognized=True, face_image_path=None):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO temporary_attendance (session_id, student_id, status, recognized, face_image_path)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (session_id, student_id, status, int(recognized), face_image_path))
+        conn.commit()
+        conn.close()
+
+    def get_by_session(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM temporary_attendance WHERE session_id = ?', (session_id,))
+        records = cursor.fetchall()
+        conn.close()
+        return records
+
+    def delete_by_session(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM temporary_attendance WHERE session_id = ?', (session_id,))
+        conn.commit()
+        conn.close()
+
+class UnrecognizedFace:
+    def __init__(self, db):
+        self.db = db
+
+    def add(self, session_id, face_image_path):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO unrecognized_faces (session_id, face_image_path)
+            VALUES (?, ?)
+        ''', (session_id, face_image_path))
+        conn.commit()
+        conn.close()
+
+    def get_by_session(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM unrecognized_faces WHERE session_id = ?', (session_id,))
+        records = cursor.fetchall()
+        conn.close()
+        return records
+
+    def delete_by_session(self, session_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM unrecognized_faces WHERE session_id = ?', (session_id,))
+        conn.commit()
+        conn.close()
 
 class User:
     def __init__(self, db):

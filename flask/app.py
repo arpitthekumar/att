@@ -7,7 +7,7 @@ import os
 # Import backend modules
 from backend.database import Database
 from backend.auth import Auth, login_required, admin_required, teacher_required, student_required, track_activity
-from backend.services import UserService, ClassService, AttendanceService, ClassRequestService, DashboardService, ActivityService
+from backend.services import UserService, ClassService, AttendanceService, ClassRequestService, DashboardService, ActivityService, AttendanceSessionService
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
@@ -34,6 +34,7 @@ attendance_service = AttendanceService()
 class_request_service = ClassRequestService()
 dashboard_service = DashboardService()
 activity_service = ActivityService()
+attendance_session_service = AttendanceSessionService()
 
 # Initialize database
 db = Database()
@@ -377,11 +378,25 @@ def teacher_attendance(class_id):
     attendance = attendance_service.get_class_attendance(class_id, today)
     students = class_service.get_class_students(class_id)
     
+    # Get or create attendance session for today
+    session_id = None
+    sessions = db.get_db().cursor().execute('SELECT id FROM attendance_sessions WHERE class_id = ? AND teacher_id = ? AND date = ? AND status = "In Progress"', (class_id, session['user_id'], today)).fetchone()
+    if sessions:
+        session_id = sessions['id']
+    else:
+        session_id = attendance_session_service.start_session(class_id, session['user_id'])
+
+    temp_attendance = attendance_session_service.get_temporary_attendance(session_id)
+    unrecognized_faces = attendance_session_service.get_unrecognized_faces(session_id)
+
     return render_template('teacher/attendance.html', 
                          class_data=class_data, 
                          students=students, 
                          attendance=attendance,
-                         today=today)
+                         today=today,
+                         temp_attendance=temp_attendance,
+                         unrecognized_faces=unrecognized_faces,
+                         session_id=session_id)
 
 @app.route('/teacher/attendance/start', methods=['POST'])
 @teacher_required
@@ -704,6 +719,65 @@ def get_face_image():
         return jsonify({'error': 'No face image found'}), 404
     
     return send_file(face_file, as_attachment=True, download_name=f'face_image_{user_id}.jpg')
+
+@app.route('/teacher/attendance/start_session', methods=['POST'])
+@teacher_required
+def start_attendance_session():
+    class_id = request.form.get('class_id')
+    teacher_id = session.get('user_id')
+    session_id = attendance_session_service.start_session(class_id, teacher_id)
+    flash('Attendance session started.', 'success')
+    return redirect(url_for('live_preview_attendance', session_id=session_id))
+
+@app.route('/teacher/attendance/live_preview/<int:session_id>')
+@teacher_required
+def live_preview_attendance(session_id):
+    temp_attendance = attendance_session_service.get_temporary_attendance(session_id)
+    unrecognized_faces = attendance_session_service.get_unrecognized_faces(session_id)
+    return render_template('teacher/live_preview.html', temp_attendance=temp_attendance, unrecognized_faces=unrecognized_faces, session_id=session_id)
+
+@app.route('/teacher/attendance/mark_temp', methods=['POST'])
+@teacher_required
+def mark_temp_attendance():
+    session_id = request.form.get('session_id')
+    student_id = request.form.get('student_id')
+    status = request.form.get('status')
+    recognized = request.form.get('recognized', True)
+    face_image_path = request.form.get('face_image_path')
+    attendance_session_service.mark_temporary_attendance(session_id, student_id, status, recognized, face_image_path)
+    return jsonify({'success': True})
+
+@app.route('/teacher/attendance/add_unrecognized', methods=['POST'])
+@teacher_required
+def add_unrecognized_face():
+    session_id = request.form.get('session_id')
+    face_image_path = request.form.get('face_image_path')
+    attendance_session_service.add_unrecognized_face(session_id, face_image_path)
+    return jsonify({'success': True})
+
+@app.route('/teacher/attendance/assign_face', methods=['POST'])
+@teacher_required
+def assign_unrecognized_face():
+    session_id = request.form.get('session_id')
+    student_id = request.form.get('student_id')
+    face_image_path = request.form.get('face_image_path')
+    attendance_session_service.assign_unrecognized_face(session_id, student_id, face_image_path)
+    return jsonify({'success': True})
+
+@app.route('/teacher/attendance/review/<int:session_id>')
+@teacher_required
+def review_attendance(session_id):
+    temp_attendance = attendance_session_service.get_temporary_attendance(session_id)
+    return render_template('teacher/review_attendance.html', temp_attendance=temp_attendance, session_id=session_id)
+
+@app.route('/teacher/attendance/save/<int:session_id>', methods=['POST'])
+@teacher_required
+def save_attendance(session_id):
+    # Here, move temp attendance to final attendance table and finalize session
+    # You can add logic to save each record to Attendance table
+    attendance_session_service.finalize_session(session_id)
+    flash('Attendance finalized and saved.', 'success')
+    return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

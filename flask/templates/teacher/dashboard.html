@@ -196,5 +196,24 @@
             </div>
         </div>
     </div>
+
+    <!-- Start Attendance Session -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mt-6">
+        <h2 class="text-xl font-bold mb-2">Start Attendance Session</h2>
+        <form method="post" action="{{ url_for('start_attendance_session') }}">
+            <label for="class_id">Select Class:</label>
+            <select name="class_id" id="class_id">
+                {% for class in classes %}
+                <option value="{{ class.id }}">{{ class.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-success">Start Attendance</button>
+        </form>
+        {% if session_id %}
+        <div class="mt-4">
+            <a href="{{ url_for('live_preview_attendance', session_id=session_id) }}" class="btn btn-primary">Go to Live Preview</a>
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

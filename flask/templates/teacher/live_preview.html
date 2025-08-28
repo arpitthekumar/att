@@ -1,0 +1,45 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Live Attendance Preview</h2>
+<form method="post" action="{{ url_for('save_attendance', session_id=session_id) }}">
+    <h3>Present (Temporary)</h3>
+    <ul>
+    {% for record in temp_attendance %}
+        {% if record['status'] == 'Present (Temporary)' %}
+        <li>{{ record['student_id'] }} - {{ record['status'] }}
+            <input type="hidden" name="student_id" value="{{ record['student_id'] }}">
+            <select name="status">
+                <option value="Present (Temporary)" selected>Present (Temporary)</option>
+                <option value="Absent (Temporary)">Absent (Temporary)</option>
+            </select>
+        </li>
+        {% endif %}
+    {% endfor %}
+    </ul>
+    <h3>Absent (Temporary)</h3>
+    <ul>
+    {% for record in temp_attendance %}
+        {% if record['status'] == 'Absent (Temporary)' %}
+        <li>{{ record['student_id'] }} - {{ record['status'] }}
+            <input type="hidden" name="student_id" value="{{ record['student_id'] }}">
+            <select name="status">
+                <option value="Present (Temporary)">Present (Temporary)</option>
+                <option value="Absent (Temporary)" selected>Absent (Temporary)</option>
+            </select>
+        </li>
+        {% endif %}
+    {% endfor %}
+    </ul>
+    <h3>Unrecognized Faces</h3>
+    <ul>
+    {% for face in unrecognized_faces %}
+        <li>
+            <img src="{{ face['face_image_path'] }}" alt="Unrecognized Face" width="100">
+            <input type="text" name="assign_student_id" placeholder="Assign to Student ID">
+            <button type="submit" formaction="{{ url_for('assign_unrecognized_face') }}">Assign</button>
+        </li>
+    {% endfor %}
+    </ul>
+    <button type="submit">Review Attendance</button>
+</form>
+{% endblock %}

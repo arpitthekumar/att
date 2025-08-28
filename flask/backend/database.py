@@ -152,7 +152,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Classes table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS classes (
@@ -162,7 +162,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-        
+
         # Class assignments (many-to-many between users and classes)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS class_assignments (
@@ -177,7 +177,7 @@ class Database:
                 UNIQUE(user_id, class_id, role)
             )
         ''')
-        
+
         # Students table (for additional student info)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS students (
@@ -188,7 +188,7 @@ class Database:
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
-        
+
         # Attendance table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS attendance (
@@ -207,7 +207,44 @@ class Database:
                 UNIQUE(user_id, class_id, date)
             )
         ''')
-        
+
+        # Attendance sessions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS attendance_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                class_id INTEGER NOT NULL,
+                teacher_id INTEGER NOT NULL,
+                date DATE NOT NULL,
+                status TEXT DEFAULT 'In Progress',
+                FOREIGN KEY (class_id) REFERENCES classes (id),
+                FOREIGN KEY (teacher_id) REFERENCES users (id)
+            )
+        ''')
+
+        # Temporary attendance table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS temporary_attendance (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                student_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                recognized INTEGER DEFAULT 1,
+                face_image_path TEXT,
+                FOREIGN KEY (session_id) REFERENCES attendance_sessions (id),
+                FOREIGN KEY (student_id) REFERENCES users (id)
+            )
+        ''')
+
+        # Unrecognized faces table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS unrecognized_faces (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                face_image_path TEXT NOT NULL,
+                FOREIGN KEY (session_id) REFERENCES attendance_sessions (id)
+            )
+        ''')
+
         # Class requests table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS class_requests (
@@ -223,7 +260,7 @@ class Database:
                 FOREIGN KEY (reviewed_by) REFERENCES users (id)
             )
         ''')
-        
+
         # User activity tracking table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS user_activity (
@@ -238,7 +275,7 @@ class Database:
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
-        
+
         # Run migration to update existing database
         self.migrate_database()
         

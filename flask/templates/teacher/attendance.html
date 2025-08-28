@@ -225,6 +225,39 @@
             </table>
         </div>
     </div>
+
+    <!-- Temporary Attendance Section -->
+    <div class="bg-white rounded-xl shadow-lg p-6 mt-6">
+        <h2 class="text-xl font-bold mb-2">Temporary Attendance (Live Preview)</h2>
+        <div id="temp-attendance-list">
+            {% if temp_attendance %}
+            <table class="table-auto w-full">
+                <thead>
+                    <tr><th>Student ID</th><th>Status</th><th>Edit</th></tr>
+                </thead>
+                <tbody>
+                {% for record in temp_attendance %}
+                    <tr>
+                        <td>{{ record['student_id'] }}</td>
+                        <td>{{ record['status'] }}</td>
+                        <td>
+                            <select name="status_{{ record['student_id'] }}">
+                                <option value="Present (Temporary)" {% if record['status'] == 'Present (Temporary)' %}selected{% endif %}>Present (Temporary)</option>
+                                <option value="Absent (Temporary)" {% if record['status'] == 'Absent (Temporary)' %}selected{% endif %}>Absent (Temporary)</option>
+                            </select>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <form method="post" action="{{ url_for('review_attendance', session_id=session_id) }}">
+                <button type="submit" class="btn btn-primary mt-4">Review Attendance</button>
+            </form>
+            {% else %}
+            <p>No temporary attendance records yet. Start camera and scan faces to populate.</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <!-- Hidden data for JavaScript -->

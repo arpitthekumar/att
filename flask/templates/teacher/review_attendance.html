@@ -1,0 +1,22 @@
+{% extends 'layout.html' %}
+{% block content %}
+<h2>Review Attendance</h2>
+<form method="post" action="{{ url_for('save_attendance', session_id=session_id) }}">
+    <table>
+        <tr><th>Student ID</th><th>Status</th><th>Edit</th></tr>
+        {% for record in temp_attendance %}
+        <tr>
+            <td>{{ record['student_id'] }}</td>
+            <td>{{ record['status'] }}</td>
+            <td>
+                <select name="status_{{ record['student_id'] }}">
+                    <option value="Present" {% if record['status'] == 'Present (Temporary)' %}selected{% endif %}>Present</option>
+                    <option value="Absent" {% if record['status'] == 'Absent (Temporary)' %}selected{% endif %}>Absent</option>
+                </select>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <button type="submit">Save Attendance</button>
+</form>
+{% endblock %}

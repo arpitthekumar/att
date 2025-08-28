@@ -1,12 +1,42 @@
 from datetime import datetime, date
 from .database import Database
-from .models import User, Class, ClassAssignment, Attendance, ClassRequest, UserActivity
+from .models import User, Class, ClassAssignment, Attendance, ClassRequest, UserActivity, AttendanceSession, TemporaryAttendance, UnrecognizedFace
 from .face_recognition import FaceRecognition
 import cv2
 import numpy as np
 from PIL import Image
 import io
 import base64
+
+class AttendanceSessionService:
+    def __init__(self):
+        self.db = Database()
+        self.session_model = AttendanceSession(self.db)
+        self.temp_attendance_model = TemporaryAttendance(self.db)
+        self.unrec_face_model = UnrecognizedFace(self.db)
+
+    def start_session(self, class_id, teacher_id):
+        return self.session_model.create(class_id, teacher_id)
+
+    def finalize_session(self, session_id):
+        self.session_model.finalize(session_id)
+        self.temp_attendance_model.delete_by_session(session_id)
+        self.unrec_face_model.delete_by_session(session_id)
+
+    def mark_temporary_attendance(self, session_id, student_id, status, recognized=True, face_image_path=None):
+        self.temp_attendance_model.mark(session_id, student_id, status, recognized, face_image_path)
+
+    def get_temporary_attendance(self, session_id):
+        return self.temp_attendance_model.get_by_session(session_id)
+
+    def add_unrecognized_face(self, session_id, face_image_path):
+        self.unrec_face_model.add(session_id, face_image_path)
+
+    def get_unrecognized_faces(self, session_id):
+        return self.unrec_face_model.get_by_session(session_id)
+
+    def assign_unrecognized_face(self, session_id, student_id, face_image_path):
+        self.temp_attendance_model.mark(session_id, student_id, 'Present (Temporary)', True, face_image_path)
 
 class UserService:
     def __init__(self):
