@@ -10,9 +10,9 @@
             <p class="text-gray-600 mt-2">View and manage all classes in the system</p>
         </div>
         <div class="flex items-center space-x-3">
-            <a href="#" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition duration-200">
+            <button type="button" onclick="showAddClassModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition duration-200">
                 <i class="fas fa-plus mr-2"></i>Add Class
-            </a>
+            </button>
         </div>
     </div>
 
@@ -30,7 +30,13 @@
             <div class="space-y-3 mb-6">
                 <div class="flex items-center text-sm text-gray-600">
                     <i class="fas fa-chalkboard-teacher mr-2"></i>
-                    <span><strong>Teacher:</strong> {{ class.teacher_name or 'Not assigned' }}</span>
+                    <span><strong>Teachers:</strong> 
+                        {% if class.teachers %}
+                            {{ class.teachers|join(', ') }}
+                        {% else %}
+                            Not assigned
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="flex items-center text-sm text-gray-600">
                     <i class="fas fa-users mr-2"></i>
@@ -43,15 +49,22 @@
             </div>
             
             <div class="flex space-x-2">
-                <button class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                <a href="{{ url_for('admin_edit_class', class_id=class.id) }}" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
                     <i class="fas fa-edit mr-1"></i>Edit
-                </button>
-                <button class="flex-1 bg-green-600 hover:bg-green-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                </a>
+                <a href="{{ url_for('admin_class_students', class_id=class.id) }}" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
                     <i class="fas fa-users mr-1"></i>Students
-                </button>
-                <button class="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                </a>
+                <a href="{{ url_for('admin_class_reports', class_id=class.id) }}" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
                     <i class="fas fa-chart-bar mr-1"></i>Reports
-                </button>
+                </a>
+            </div>
+            <div class="mt-2">
+                <form method="POST" action="{{ url_for('admin_delete_class', class_id=class.id) }}" onsubmit="return confirm('Are you sure you want to delete this class? This action cannot be undone.')">
+                    <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white text-center py-2 px-3 rounded-md text-sm font-medium transition duration-200">
+                        <i class="fas fa-trash mr-1"></i>Delete Class
+                    </button>
+                </form>
             </div>
         </div>
         {% endfor %}
@@ -155,7 +168,7 @@
                 <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class Name</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teachers</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -175,14 +188,18 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if class.teacher_name %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                <i class="fas fa-chalkboard-teacher mr-1"></i>{{ class.teacher_name }}
-                            </span>
+                            {% if class.teachers %}
+                                <div class="flex flex-col space-y-1">
+                                {% for teacher in class.teachers %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <i class="fas fa-chalkboard-teacher mr-1"></i>{{ teacher }}
+                                    </span>
+                                {% endfor %}
+                                </div>
                             {% else %}
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                <i class="fas fa-user-slash mr-1"></i>Not assigned
-                            </span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    <i class="fas fa-user-slash mr-1"></i>Not assigned
+                                </span>
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -196,18 +213,20 @@
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex items-center space-x-2">
-                                <button class="text-blue-600 hover:text-blue-900" title="Edit Class">
+                                <a href="{{ url_for('admin_edit_class', class_id=class.id) }}" class="text-blue-600 hover:text-blue-900" title="Edit Class">
                                     <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="text-green-600 hover:text-green-900" title="View Students">
+                                </a>
+                                <a href="{{ url_for('admin_class_students', class_id=class.id) }}" class="text-green-600 hover:text-green-900" title="View Students">
                                     <i class="fas fa-users"></i>
-                                </button>
-                                <button class="text-purple-600 hover:text-purple-900" title="View Reports">
+                                </a>
+                                <a href="{{ url_for('admin_class_reports', class_id=class.id) }}" class="text-purple-600 hover:text-purple-900" title="View Reports">
                                     <i class="fas fa-chart-bar"></i>
-                                </button>
-                                <button class="text-red-600 hover:text-red-900" title="Delete Class">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin_delete_class', class_id=class.id) }}" class="inline" onsubmit="return confirm('Are you sure you want to delete this class? This action cannot be undone.')">
+                                    <button type="submit" class="text-red-600 hover:text-red-900" title="Delete Class">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>
@@ -227,7 +246,66 @@
     </div>
 </div>
 
+<!-- Add Class Modal -->
+<div id="addClassModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full" style="z-index: 100;">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3">
+            <div class="flex justify-between items-center pb-3">
+                <h3 class="text-lg font-medium text-gray-900">Add New Class</h3>
+                <button type="button" class="text-gray-400 hover:text-gray-500" onclick="hideAddClassModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form method="POST" action="{{ url_for('admin_classes') }}">
+                <div class="mt-2 space-y-4">
+                    <div>
+                        <label for="class_name" class="block text-sm font-medium text-gray-700">Class Name</label>
+                        <input type="text" name="class_name" id="class_name" required
+                               class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Assign Teachers (Optional)</label>
+                        <div class="bg-white border border-gray-300 rounded-md p-3 max-h-60 overflow-y-auto">
+                            {% for teacher in teachers %}
+                            <div class="flex items-center mb-2 last:mb-0">
+                                <input type="checkbox" id="teacher_{{ teacher.id }}" name="teacher_ids[]" value="{{ teacher.id }}"
+                                       class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                <label for="teacher_{{ teacher.id }}" class="ml-2 block text-sm text-gray-900">
+                                    {{ teacher.name }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                            {% if not teachers %}
+                            <div class="text-sm text-gray-500 italic">No teachers available</div>
+                            {% endif %}
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500">Select multiple teachers for this class</p>
+                    </div>
+                </div>
+                <div class="flex justify-end space-x-3 mt-5">
+                    <button type="button" onclick="hideAddClassModal()"
+                            class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300 transition-colors">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
+                        Create Class
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+function showAddClassModal() {
+    document.getElementById('addClassModal').classList.remove('hidden');
+    document.getElementById('class_name').focus();
+}
+
+function hideAddClassModal() {
+    document.getElementById('addClassModal').classList.add('hidden');
+}
 document.addEventListener('DOMContentLoaded', function() {
     // Add class form validation
     const form = document.querySelector('form');

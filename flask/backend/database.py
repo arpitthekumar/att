@@ -45,6 +45,14 @@ class Database:
             if 'marked_at' not in attendance_columns:
                 print("Adding 'marked_at' column to attendance table...")
                 cursor.execute('ALTER TABLE attendance ADD COLUMN marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
+                
+            if 'remarks' not in attendance_columns:
+                print("Adding 'remarks' column to attendance table...")
+                cursor.execute('ALTER TABLE attendance ADD COLUMN remarks TEXT')
+                
+            if 'attendance_type' not in attendance_columns:
+                print("Adding 'attendance_type' column to attendance table...")
+                cursor.execute('ALTER TABLE attendance ADD COLUMN attendance_type TEXT DEFAULT "regular"')
             
             # Check and update class_assignments table
             cursor.execute("PRAGMA table_info(class_assignments)")
@@ -191,6 +199,8 @@ class Database:
                 status TEXT DEFAULT 'present',
                 marked_by INTEGER NOT NULL,
                 marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                remarks TEXT,
+                attendance_type TEXT DEFAULT 'regular',
                 FOREIGN KEY (user_id) REFERENCES users (id),
                 FOREIGN KEY (class_id) REFERENCES classes (id),
                 FOREIGN KEY (marked_by) REFERENCES users (id),

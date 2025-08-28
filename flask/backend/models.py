@@ -134,6 +134,22 @@ class Class:
         class_id = cursor.lastrowid
         conn.close()
         return class_id
+        
+    def delete(self, class_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        try:
+            # First delete all class assignments
+            cursor.execute('DELETE FROM class_assignments WHERE class_id = ?', (class_id,))
+            # Then delete the class
+            cursor.execute('DELETE FROM classes WHERE id = ?', (class_id,))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return False
     
     def get_all(self):
         conn = self.db.get_db()
@@ -150,6 +166,24 @@ class Class:
         class_data = cursor.fetchone()
         conn.close()
         return class_data
+        
+    def update(self, class_id, name, description=None):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        try:
+            if description is not None:
+                cursor.execute('UPDATE classes SET name = ?, description = ? WHERE id = ?', 
+                              (name, description, class_id))
+            else:
+                cursor.execute('UPDATE classes SET name = ? WHERE id = ?', 
+                              (name, class_id))
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            conn.rollback()
+            conn.close()
+            return False
     
     def get_teachers(self, class_id):
         conn = self.db.get_db()
@@ -195,6 +229,22 @@ class ClassAssignment:
             conn.close()
             return False
     
+    def remove_teacher(self, user_id, class_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                DELETE FROM class_assignments 
+                WHERE user_id = ? AND class_id = ? AND role = 'teacher'
+            ''', (user_id, class_id))
+            conn.commit()
+            conn.close()
+            return True
+        except:
+            conn.rollback()
+            conn.close()
+            return False
+    
     def assign_student(self, user_id, class_id, roll_number):
         conn = self.db.get_db()
         cursor = conn.cursor()
@@ -235,18 +285,19 @@ class Attendance:
     def __init__(self, db):
         self.db = db
     
-    def mark_attendance(self, user_id, class_id, date, status, marked_by):
+    def mark_attendance(self, user_id, class_id, date, status, marked_by, remarks=None, attendance_type="regular"):
         conn = self.db.get_db()
         cursor = conn.cursor()
         try:
             cursor.execute('''
-                INSERT OR REPLACE INTO attendance (user_id, class_id, date, status, marked_by) 
-                VALUES (?, ?, ?, ?, ?)
-            ''', (user_id, class_id, date, status, marked_by))
+                INSERT OR REPLACE INTO attendance (user_id, class_id, date, status, marked_by, remarks, attendance_type) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (user_id, class_id, date, status, marked_by, remarks, attendance_type))
             conn.commit()
             conn.close()
             return True
-        except:
+        except Exception as e:
+            print(f"Error marking attendance: {e}")
             conn.close()
             return False
     
@@ -265,23 +316,51 @@ class Attendance:
         conn.close()
         return attendance
     
-    def get_student_attendance(self, user_id, class_id=None):
+    def get_student_attendance(self, user_id, class_id=None, start_date=None, end_date=None):
         conn = self.db.get_db()
         cursor = conn.cursor()
+        
+        query_params = []
+        query = '''
+            SELECT a.*, c.name as class_name FROM attendance a 
+            JOIN classes c ON a.class_id = c.id 
+            WHERE a.user_id = ?
+        '''
+        query_params.append(user_id)
+        
         if class_id:
-            cursor.execute('''
-                SELECT a.*, c.name as class_name FROM attendance a 
-                JOIN classes c ON a.class_id = c.id 
-                WHERE a.user_id = ? AND a.class_id = ?
-                ORDER BY a.date DESC
-            ''', (user_id, class_id))
-        else:
-            cursor.execute('''
-                SELECT a.*, c.name as class_name FROM attendance a 
-                JOIN classes c ON a.class_id = c.id 
-                WHERE a.user_id = ?
-                ORDER BY a.date DESC
-            ''', (user_id,))
+            query += ' AND a.class_id = ?'
+            query_params.append(class_id)
+            
+        if start_date:
+            query += ' AND a.date >= ?'
+            query_params.append(start_date)
+            
+        if end_date:
+            query += ' AND a.date <= ?'
+            query_params.append(end_date)
+            
+        query += ' ORDER BY a.date DESC'
+        
+        cursor.execute(query, query_params)
+        attendance = cursor.fetchall()
+        conn.close()
+        return attendance
+        
+    def get_class_attendance_by_date_range(self, class_id, start_date, end_date):
+        """Get attendance records for a class within a date range"""
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT u.name, u.id, ca.roll_number, a.date, a.status, a.marked_at, a.remarks, a.attendance_type
+            FROM users u 
+            JOIN class_assignments ca ON u.id = ca.user_id 
+            LEFT JOIN attendance a ON u.id = a.user_id AND a.class_id = ? AND a.date BETWEEN ? AND ?
+            WHERE ca.class_id = ? AND ca.role = 'student'
+            ORDER BY ca.roll_number, a.date
+        ''', (class_id, start_date, end_date, class_id))
+        
         attendance = cursor.fetchall()
         conn.close()
         return attendance

@@ -8,6 +8,11 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     updateAttendanceSummary();
     loadExistingAttendance();
+    
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('start-date').value = today;
+    document.getElementById('end-date').value = today;
 });
 
 function setupEventListeners() {
@@ -16,12 +21,14 @@ function setupEventListeners() {
     const markAttendanceBtn = document.getElementById('mark-attendance');
     const exportAttendanceBtn = document.getElementById('export-attendance');
     const refreshAttendanceBtn = document.getElementById('refresh-attendance');
+    const loadDateRangeBtn = document.getElementById('load-date-range');
 
     if (startCameraBtn) startCameraBtn.addEventListener('click', startCamera);
     if (stopCameraBtn) stopCameraBtn.addEventListener('click', stopCamera);
     if (markAttendanceBtn) markAttendanceBtn.addEventListener('click', markAttendanceWithFace);
     if (exportAttendanceBtn) exportAttendanceBtn.addEventListener('click', exportAttendance);
     if (refreshAttendanceBtn) refreshAttendanceBtn.addEventListener('click', refreshAttendance);
+    if (loadDateRangeBtn) loadDateRangeBtn.addEventListener('click', loadDateRangeAttendance);
 
     // Student selection for face recognition
     document.querySelectorAll('.student-row').forEach(row => {
@@ -161,6 +168,10 @@ async function markAttendanceWithFace() {
         return;
     }
     
+    // Get attendance type and remarks
+    const attendanceType = document.getElementById('attendance-type').value;
+    const remarks = document.getElementById('attendance-remarks').value;
+    
     try {
         const response = await fetch('/teacher/attendance/start', {
             method: 'POST',
@@ -169,15 +180,20 @@ async function markAttendanceWithFace() {
             },
             body: JSON.stringify({
                 class_id: getClassId(),
-                student_id: currentStudentId
+                student_id: currentStudentId,
+                attendance_type: attendanceType,
+                remarks: remarks
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            updateStudentAttendance(currentStudentId, 'present', new Date().toLocaleTimeString());
+            updateStudentAttendance(currentStudentId, 'present', new Date().toLocaleTimeString(), attendanceType, remarks);
             showNotification('Attendance marked successfully!', 'success');
+            
+            // Clear remarks field after successful attendance marking
+            document.getElementById('attendance-remarks').value = '';
         } else {
             showNotification('Failed to mark attendance: ' + result.message, 'error');
         }
@@ -187,6 +203,10 @@ async function markAttendanceWithFace() {
 }
 
 async function markAttendance(studentId, status) {
+    // Get attendance type and remarks
+    const attendanceType = document.getElementById('attendance-type').value;
+    const remarks = document.getElementById('attendance-remarks').value;
+    
     try {
         const response = await fetch('/api/mark-attendance-manual', {
             method: 'POST',
@@ -196,15 +216,20 @@ async function markAttendance(studentId, status) {
             body: JSON.stringify({
                 student_id: studentId,
                 class_id: getClassId(),
-                status: status
+                status: status,
+                attendance_type: attendanceType,
+                remarks: remarks
             })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            updateStudentAttendance(studentId, status, new Date().toLocaleTimeString());
+            updateStudentAttendance(studentId, status, new Date().toLocaleTimeString(), attendanceType, remarks);
             showNotification(`Attendance marked as ${status}`, 'success');
+            
+            // Clear remarks field after successful attendance marking
+            document.getElementById('attendance-remarks').value = '';
         } else {
             showNotification('Failed to mark attendance: ' + result.message, 'error');
         }
@@ -213,12 +238,14 @@ async function markAttendance(studentId, status) {
     }
 }
 
-function updateStudentAttendance(studentId, status, time) {
+function updateStudentAttendance(studentId, status, time, attendanceType = 'regular', remarks = '') {
     const row = document.querySelector(`[data-student-id="${studentId}"]`);
     if (!row) return;
     
     const statusCell = row.querySelector('.attendance-status');
     const timeCell = row.querySelector('.attendance-time');
+    const typeCell = row.querySelector('.attendance-type');
+    const remarksCell = row.querySelector('.attendance-remarks');
     
     // Update status
     statusCell.className = `attendance-status px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
@@ -230,6 +257,16 @@ function updateStudentAttendance(studentId, status, time) {
     
     // Update time
     timeCell.textContent = time;
+    
+    // Update attendance type
+    if (typeCell) {
+        typeCell.textContent = attendanceType.charAt(0).toUpperCase() + attendanceType.slice(1);
+    }
+    
+    // Update remarks
+    if (remarksCell) {
+        remarksCell.textContent = remarks || '-';
+    }
     
     // Update attendance data
     attendanceData[studentId] = { status, time };
@@ -267,6 +304,237 @@ function loadExistingAttendance() {
 
 function refreshAttendance() {
     location.reload();
+}
+
+function loadDateRangeAttendance() {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    const classId = document.querySelector('[data-class-id]').dataset.classId;
+    
+    if (!startDate || !endDate) {
+        showNotification('Please select both start and end dates', 'error');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showNotification('Start date cannot be after end date', 'error');
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('student-list').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center">Loading attendance data...</td></tr>';
+    
+    // Fetch attendance data for date range
+    fetch(`/api/attendance/class/${classId}/range?start_date=${startDate}&end_date=${endDate}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update the student list with the date range data
+                updateStudentListWithDateRange(data.attendance);
+                showNotification('Attendance data loaded for selected date range', 'success');
+            } else {
+                showNotification(data.message || 'Failed to load attendance data', 'error');
+                document.getElementById('student-list').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center">No attendance data available</td></tr>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading date range attendance:', error);
+            showNotification('An error occurred while loading attendance data', 'error');
+            document.getElementById('student-list').innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center">Error loading attendance data</td></tr>';
+        });
+}
+
+function updateStudentListWithDateRange(attendanceData) {
+    const studentList = document.getElementById('student-list');
+    studentList.innerHTML = '';
+    
+    if (!attendanceData || attendanceData.length === 0) {
+        studentList.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center">No attendance data available for this date range</td></tr>';
+        return;
+    }
+    
+    // Group attendance by student
+    const studentAttendance = {};
+    attendanceData.forEach(record => {
+        if (!studentAttendance[record.id]) {
+            studentAttendance[record.id] = {
+                id: record.id,
+                name: record.name,
+                roll_number: record.roll_number || 'N/A',
+                dates: {}
+            };
+        }
+        
+        if (record.date) {
+            studentAttendance[record.id].dates[record.date] = {
+                status: record.status || 'absent',
+                time: record.time || 'N/A',
+                remarks: record.remarks || '',
+                attendance_type: record.attendance_type || 'regular'
+            };
+        }
+    });
+    
+    // Create a row for each student with their attendance data
+    Object.values(studentAttendance).forEach(student => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        row.dataset.studentId = student.id;
+        
+        // Calculate attendance statistics
+        const totalDays = Object.keys(student.dates).length;
+        const presentDays = Object.values(student.dates).filter(d => d.status === 'present').length;
+        const lateDays = Object.values(student.dates).filter(d => d.status === 'late').length;
+        const absentDays = totalDays - presentDays - lateDays;
+        const attendanceRate = totalDays > 0 ? Math.round((presentDays + lateDays) / totalDays * 100) : 0;
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                    <div class="ml-4">
+                        <div class="text-sm font-medium text-gray-900">${student.name}</div>
+                    </div>
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">${student.roll_number}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm">
+                    <span class="font-medium">Present:</span> ${presentDays}<br>
+                    <span class="font-medium">Late:</span> ${lateDays}<br>
+                    <span class="font-medium">Absent:</span> ${absentDays}<br>
+                    <span class="font-medium">Rate:</span> ${attendanceRate}%
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">Multiple</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">Multiple dates</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-900">Various</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button class="text-blue-600 hover:text-blue-900 view-details" data-student-id="${student.id}">
+                    <i class="fas fa-eye mr-1"></i>Details
+                </button>
+            </td>
+        `;
+        
+        studentList.appendChild(row);
+    });
+    
+    // Add event listeners for the view details buttons
+    document.querySelectorAll('.view-details').forEach(button => {
+        button.addEventListener('click', function() {
+            const studentId = this.dataset.studentId;
+            const student = studentAttendance[studentId];
+            showAttendanceDetails(student);
+        });
+    });
+    
+    // Update attendance summary
+    updateAttendanceSummaryForDateRange(studentAttendance);
+}
+
+function updateAttendanceSummaryForDateRange(studentAttendance) {
+    // Calculate overall statistics
+    let totalPresent = 0;
+    let totalLate = 0;
+    let totalAbsent = 0;
+    let totalDays = 0;
+    
+    Object.values(studentAttendance).forEach(student => {
+        Object.values(student.dates).forEach(date => {
+            totalDays++;
+            if (date.status === 'present') totalPresent++;
+            else if (date.status === 'late') totalLate++;
+            else totalAbsent++;
+        });
+    });
+    
+    const attendanceRate = totalDays > 0 ? Math.round((totalPresent + totalLate) / totalDays * 100) : 0;
+    
+    // Update the UI
+    document.getElementById('present-count').textContent = totalPresent;
+    document.getElementById('late-count').textContent = totalLate;
+    document.getElementById('absent-count').textContent = totalAbsent;
+    document.getElementById('attendance-rate').textContent = `${attendanceRate}%`;
+}
+
+function showAttendanceDetails(student) {
+    // Create a modal to show detailed attendance for the student
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center';
+    modal.style.zIndex = '100';
+    
+    // Sort dates in descending order
+    const sortedDates = Object.keys(student.dates).sort((a, b) => new Date(b) - new Date(a));
+    
+    let dateRows = '';
+    sortedDates.forEach(date => {
+        const attendance = student.dates[date];
+        const statusClass = attendance.status === 'present' ? 'text-green-600' : 
+                           attendance.status === 'late' ? 'text-yellow-600' : 'text-red-600';
+        
+        dateRows += `
+            <tr class="border-b">
+                <td class="py-2 px-4">${formatDate(date)}</td>
+                <td class="py-2 px-4"><span class="${statusClass} font-medium">${capitalizeFirstLetter(attendance.status)}</span></td>
+                <td class="py-2 px-4">${attendance.attendance_type}</td>
+                <td class="py-2 px-4">${attendance.time}</td>
+                <td class="py-2 px-4">${attendance.remarks || '-'}</td>
+            </tr>
+        `;
+    });
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl p-6 m-4 max-w-4xl w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900">Attendance Details: ${student.name}</h3>
+                <button class="text-gray-400 hover:text-gray-500" id="close-details-modal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <p class="text-sm text-gray-600">Roll Number: ${student.roll_number}</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="py-2 px-4 text-left">Date</th>
+                            <th class="py-2 px-4 text-left">Status</th>
+                            <th class="py-2 px-4 text-left">Type</th>
+                            <th class="py-2 px-4 text-left">Time</th>
+                            <th class="py-2 px-4 text-left">Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${dateRows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add event listener to close the modal
+    document.getElementById('close-details-modal').addEventListener('click', function() {
+        document.body.removeChild(modal);
+    });
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
 function exportAttendance() {

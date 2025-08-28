@@ -71,6 +71,10 @@ class ClassService:
     def create_class(self, name, description=""):
         """Create a new class"""
         return self.class_model.create(name, description)
+        
+    def delete_class(self, class_id):
+        """Delete a class and all its assignments"""
+        return self.class_model.delete(class_id)
     
     def get_all_classes(self):
         """Get all classes with teacher names and student counts"""
@@ -82,11 +86,15 @@ class ClassService:
             # Convert to dict
             class_dict = dict(class_data)
             
-            # Get teacher name
+            # Get all teachers for this class
             teachers = self.get_class_teachers(class_dict['id'])
             if teachers:
-                class_dict['teacher_name'] = teachers[0]['name']
+                # Store all teacher names in a list
+                class_dict['teachers'] = [teacher['name'] for teacher in teachers]
+                # Keep teacher_name for backward compatibility
+                class_dict['teacher_name'] = teachers[0]['name'] if teachers else None
             else:
+                class_dict['teachers'] = []
                 class_dict['teacher_name'] = None
             
             # Get student count
@@ -117,9 +125,17 @@ class ClassService:
         
         return formatted_students
     
+    def update_class(self, class_id, name, description=None):
+        """Update a class name and description"""
+        return self.class_model.update(class_id, name, description)
+    
     def assign_teacher_to_class(self, user_id, class_id):
         """Assign a teacher to a class"""
         return self.assignment_model.assign_teacher(user_id, class_id)
+        
+    def remove_teacher_from_class(self, user_id, class_id):
+        """Remove a teacher from a class"""
+        return self.assignment_model.remove_teacher(user_id, class_id)
     
     def assign_student_to_class(self, user_id, class_id, roll_number):
         """Assign a student to a class with roll number"""
@@ -143,9 +159,9 @@ class AttendanceService:
         self.attendance_model = Attendance(self.db)
         self.face_recognition = FaceRecognition()
     
-    def mark_attendance(self, user_id, class_id, date, status, marked_by):
-        """Mark attendance for a student"""
-        return self.attendance_model.mark_attendance(user_id, class_id, date, status, marked_by)
+    def mark_attendance(self, user_id, class_id, date, status, marked_by, remarks=None, attendance_type="regular"):
+        """Mark attendance for a student with optional remarks and attendance type"""
+        return self.attendance_model.mark_attendance(user_id, class_id, date, status, marked_by, remarks, attendance_type)
     
     def get_class_attendance(self, class_id, date):
         """Get attendance for a class on a specific date"""
@@ -174,18 +190,44 @@ class AttendanceService:
         
         return formatted_records
     
-    def get_student_attendance(self, user_id, class_id=None):
+    def get_student_attendance(self, user_id, class_id=None, start_date=None, end_date=None):
         """Get attendance records for a student with formatted data"""
-        records = self.attendance_model.get_student_attendance(user_id, class_id)
+        records = self.attendance_model.get_student_attendance(user_id, class_id, start_date, end_date)
         
         # Convert sqlite3.Row objects to dictionaries and format data
         formatted_records = []
         for record in records:
             record_dict = dict(record)
             
-            # Format date and time
+            # Format date and time if marked_at exists
             if 'marked_at' in record_dict and record_dict['marked_at']:
-                # Parse the timestamp and format it
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(record_dict['marked_at'].replace('Z', '+00:00'))
+                    record_dict['date'] = dt.strftime('%Y-%m-%d')
+                    record_dict['time'] = dt.strftime('%H:%M')
+                except:
+                    record_dict['date'] = str(record_dict.get('date', ''))
+                    record_dict['time'] = 'N/A'
+            else:
+                record_dict['date'] = str(record_dict.get('date', ''))
+                record_dict['time'] = 'N/A'
+            
+            formatted_records.append(record_dict)
+        
+        return formatted_records
+        
+    def get_class_attendance_by_date_range(self, class_id, start_date, end_date):
+        """Get attendance for a class within a specific date range"""
+        attendance_records = self.attendance_model.get_class_attendance_by_date_range(class_id, start_date, end_date)
+        
+        # Convert sqlite3.Row objects to dictionaries
+        formatted_records = []
+        for record in attendance_records:
+            record_dict = dict(record)
+            
+            # Format date and time if marked_at exists
+            if 'marked_at' in record_dict and record_dict['marked_at']:
                 try:
                     from datetime import datetime
                     dt = datetime.fromisoformat(record_dict['marked_at'].replace('Z', '+00:00'))
@@ -202,7 +244,7 @@ class AttendanceService:
         
         return formatted_records
     
-    def mark_attendance_with_face(self, user_id, class_id, marked_by):
+    def mark_attendance_with_face(self, user_id, class_id, marked_by, attendance_type="regular", remarks=None):
         """Mark attendance using face recognition with strict validation"""
         # First verify the user has face data
         if not self.face_recognition.has_face_data(user_id):
@@ -220,7 +262,7 @@ class AttendanceService:
         
         if success:
             # Mark attendance if face recognition succeeds
-            attendance_id = self.mark_attendance(user_id, class_id, today, 'present', marked_by)
+            attendance_id = self.mark_attendance(user_id, class_id, today, 'present', marked_by, remarks, attendance_type)
             if attendance_id:
                 return True, "Attendance marked successfully with face recognition"
             else:
@@ -228,7 +270,7 @@ class AttendanceService:
         else:
             return False, f"Face recognition failed: {message}. Please try again."
     
-    def mark_attendance_manual(self, user_id, class_id, status, marked_by):
+    def mark_attendance_manual(self, user_id, class_id, status, marked_by, attendance_type="regular", remarks=None):
         """Mark attendance manually (for teachers/admins)"""
         today = date.today()
         
@@ -238,7 +280,7 @@ class AttendanceService:
             if record['date'] == today:
                 return False, "Attendance already marked for today"
         
-        attendance_id = self.mark_attendance(user_id, class_id, today, status, marked_by)
+        attendance_id = self.mark_attendance(user_id, class_id, today, status, marked_by, remarks, attendance_type)
         if attendance_id:
             return True, f"Attendance marked as {status}"
         else:

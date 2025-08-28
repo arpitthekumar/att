@@ -179,14 +179,14 @@ def admin_add_user():
 def admin_classes():
     if request.method == 'POST':
         class_name = request.form['class_name']
-        teacher_id = request.form.get('teacher_id')
+        teacher_ids = request.form.getlist('teacher_ids[]')
         
         # Create the class
         class_id = class_service.create_class(class_name)
         
         if class_id:
-            # Assign teacher if selected
-            if teacher_id:
+            # Assign teachers if selected
+            for teacher_id in teacher_ids:
                 class_service.assign_teacher_to_class(int(teacher_id), class_id)
             
             flash('Class created successfully!', 'success')
@@ -197,6 +197,91 @@ def admin_classes():
     classes = class_service.get_all_classes()
     teachers = user_service.get_all_users('teacher')
     return render_template('admin/classes.html', classes=classes, teachers=teachers)
+
+@app.route('/admin/classes/edit/<int:class_id>', methods=['GET', 'POST'])
+@admin_required
+@track_activity('admin_edit_class')
+def admin_edit_class(class_id):
+    class_data = class_service.get_class_by_id(class_id)
+    if not class_data:
+        flash('Class not found', 'error')
+        return redirect(url_for('admin_classes'))
+    
+    if request.method == 'POST':
+        class_name = request.form['class_name']
+        teacher_ids = request.form.getlist('teacher_ids[]')
+        
+        # Update class name
+        class_service.update_class(class_id, class_name)
+        
+        # Remove all current teacher assignments
+        current_teachers = class_service.get_class_teachers(class_id)
+        for teacher in current_teachers:
+            class_service.remove_teacher_from_class(teacher['id'], class_id)
+        
+        # Add new teacher assignments
+        for teacher_id in teacher_ids:
+            class_service.assign_teacher_to_class(int(teacher_id), class_id)
+        
+        flash('Class updated successfully!', 'success')
+        return redirect(url_for('admin_classes'))
+    
+    teachers = user_service.get_all_users('teacher')
+    class_teachers = class_service.get_class_teachers(class_id)
+    current_teacher_ids = [teacher['id'] for teacher in class_teachers]
+    
+    return render_template('admin/edit_class.html', 
+                         class_data=class_data, 
+                         teachers=teachers,
+                         current_teacher_ids=current_teacher_ids)
+
+@app.route('/admin/classes/students/<int:class_id>')
+@admin_required
+@track_activity('admin_class_students')
+def admin_class_students(class_id):
+    class_data = class_service.get_class_by_id(class_id)
+    if not class_data:
+        flash('Class not found', 'error')
+        return redirect(url_for('admin_classes'))
+    
+    students = class_service.get_class_students(class_id)
+    
+    return render_template('admin/class_students.html', 
+                         class_data=class_data, 
+                         students=students)
+
+@app.route('/admin/classes/reports/<int:class_id>')
+@admin_required
+@track_activity('admin_class_reports')
+def admin_class_reports(class_id):
+    class_data = class_service.get_class_by_id(class_id)
+    if not class_data:
+        flash('Class not found', 'error')
+        return redirect(url_for('admin_classes'))
+    
+    students = class_service.get_class_students(class_id)
+    
+    # Add attendance statistics for each student
+    for student in students:
+        stats = attendance_service.get_attendance_stats(student['id'], class_id)
+        student.update(stats)
+    
+    return render_template('admin/class_reports.html', 
+                         class_data=class_data, 
+                         students=students)
+
+@app.route('/admin/classes/delete/<int:class_id>', methods=['POST'])
+@admin_required
+@track_activity('admin_delete_class')
+def admin_delete_class(class_id):
+    success = class_service.delete_class(class_id)
+    
+    if success:
+        flash('Class deleted successfully!', 'success')
+    else:
+        flash('Failed to delete class.', 'error')
+    
+    return redirect(url_for('admin_classes'))
 
 @app.route('/admin/requests')
 @admin_required
@@ -304,6 +389,8 @@ def teacher_attendance(class_id):
 def teacher_start_attendance():
     class_id = request.form.get('class_id')
     student_id = request.form.get('student_id')
+    attendance_type = request.form.get('attendance_type', 'regular')
+    remarks = request.form.get('remarks', '')
     
     if not class_id or not student_id:
         return jsonify({'success': False, 'message': 'Missing parameters'})
@@ -320,7 +407,7 @@ def teacher_start_attendance():
     
     # Mark attendance with face recognition
     success, message = attendance_service.mark_attendance_with_face(
-        int(student_id), int(class_id), session['user_id']
+        int(student_id), int(class_id), session['user_id'], attendance_type, remarks
     )
     
     return jsonify({'success': success, 'message': message})
@@ -348,6 +435,35 @@ def teacher_reports(class_id):
         student.update(stats)
     
     return render_template('teacher/reports.html', class_data=class_data, students=students)
+
+@app.route('/api/attendance/class/<int:class_id>/range')
+@teacher_required
+def get_class_attendance_by_date_range(class_id):
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    
+    if not start_date or not end_date:
+        return jsonify({'success': False, 'message': 'Start date and end date are required'})
+    
+    try:
+        # Validate dates
+        datetime.strptime(start_date, '%Y-%m-%d')
+        datetime.strptime(end_date, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Invalid date format. Use YYYY-MM-DD'})
+    
+    # Check if teacher is assigned to this class
+    teacher_classes = class_service.get_user_classes(session['user_id'], 'teacher')
+    if not any(c['id'] == class_id for c in teacher_classes):
+        return jsonify({'success': False, 'message': 'You are not assigned to this class'})
+    
+    # Get attendance data for the date range
+    attendance_data = attendance_service.get_class_attendance_by_date_range(class_id, start_date, end_date)
+    
+    return jsonify({
+        'success': True, 
+        'attendance': attendance_data
+    })
 
 @app.route('/teacher/export/<int:class_id>')
 @teacher_required
@@ -542,12 +658,15 @@ def mark_attendance_manual():
         student_id = data.get('student_id')
         class_id = data.get('class_id')
         status = data.get('status')
+        attendance_type = data.get('attendance_type', 'Regular')
+        remarks = data.get('remarks', '')
         
         if not all([student_id, class_id, status]):
             return jsonify({'success': False, 'message': 'Missing required parameters'})
         
         success, message = attendance_service.mark_attendance_manual(
-            int(student_id), int(class_id), status, session['user_id']
+            int(student_id), int(class_id), status, session['user_id'],
+            attendance_type=attendance_type, remarks=remarks
         )
         
         return jsonify({'success': success, 'message': message})
