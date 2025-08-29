@@ -212,6 +212,40 @@ class UserActivity:
         conn.close()
         return active_users
 
+class FaceEmbedding:
+    def __init__(self, db):
+        self.db = db
+
+    def upsert_embedding(self, user_id, pose, model_name, embedding_text):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO face_embeddings (user_id, pose, model_name, embedding)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, pose, model_name) DO UPDATE SET embedding=excluded.embedding, created_at=CURRENT_TIMESTAMP
+        ''', (user_id, pose, model_name, embedding_text))
+        conn.commit()
+        conn.close()
+
+    def get_user_embeddings(self, user_id, model_name=None):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        if model_name:
+            cursor.execute('SELECT * FROM face_embeddings WHERE user_id = ? AND model_name = ? ORDER BY pose', (user_id, model_name))
+        else:
+            cursor.execute('SELECT * FROM face_embeddings WHERE user_id = ? ORDER BY model_name, pose', (user_id,))
+        rows = cursor.fetchall()
+        conn.close()
+        return rows
+
+    def has_any_embeddings(self, user_id):
+        conn = self.db.get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT COUNT(1) FROM face_embeddings WHERE user_id = ?', (user_id,))
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count > 0
+
 class Class:
     def __init__(self, db):
         self.db = db

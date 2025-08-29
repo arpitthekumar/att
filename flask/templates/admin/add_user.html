@@ -110,7 +110,8 @@
                     <h3 class="text-lg font-semibold text-gray-900 mb-4">
                         <i class="fas fa-camera text-blue-600 mr-2"></i>Face Capture Setup
                     </h3>
-                    <p class="text-gray-600 mb-4">Students need to have their face captured for AI-powered attendance recognition.</p>
+                    <p class="text-gray-600 mb-2">Students need multi‑pose face capture for higher accuracy.</p>
+                    <div class="text-blue-800 font-medium mb-3" id="pose-instruction">Front face → Look straight at the camera.</div>
                     
                     <!-- Instructions -->
                     <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
@@ -125,29 +126,15 @@
 
                     <!-- Capture Methods -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <!-- Camera Capture -->
+                        <!-- Camera Capture (opens modal) -->
                         <div class="border-2 border-blue-200 rounded-lg p-4">
                             <h4 class="text-md font-semibold text-gray-900 mb-3">
                                 <i class="fas fa-camera text-blue-600 mr-2"></i>Camera Capture
                             </h4>
-                            <div id="camera-container" class="mb-3">
-                                <video id="camera-feed" class="w-full h-48 bg-gray-100 rounded-lg" autoplay playsinline></video>
-                                <canvas id="camera-canvas" class="hidden"></canvas>
-                            </div>
-                            <div class="space-y-2">
-                                <button type="button" id="start-camera" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
-                                    <i class="fas fa-play mr-2"></i>Start Camera
-                                </button>
-                                <button type="button" id="capture-photo" class="w-full bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 hidden">
-                                    <i class="fas fa-camera mr-2"></i>Capture Photo
-                                </button>
-                                <button type="button" id="stop-camera" class="w-full bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 hidden">
-                                    <i class="fas fa-stop mr-2"></i>Stop Camera
-                                </button>
-                            </div>
-                            <div id="camera-status" class="mt-3 p-2 rounded-lg hidden">
-                                <p class="text-sm font-medium"></p>
-                            </div>
+                            <p class="text-sm text-gray-600 mb-3">Click Start Camera to open the capture window and follow the guidance.</p>
+                            <button type="button" id="open-capture-modal" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200">
+                                <i class="fas fa-play mr-2"></i>Start Camera
+                            </button>
                         </div>
 
                         <!-- Upload Capture -->
@@ -187,12 +174,42 @@
                         <div class="text-center">
                             <i class="fas fa-info-circle text-2xl text-blue-500 mb-2"></i>
                             <p class="text-blue-600 font-medium">Face Capture Required</p>
-                            <p class="text-sm text-gray-500">Please capture or upload a photo above to continue</p>
+                            <p class="text-sm text-gray-500">Capture all poses: Front, Left, Right, Up, Down</p>
                         </div>
                     </div>
 
-                    <!-- Hidden input for face data -->
+                    <!-- Hidden input for backwards compatibility (kept empty) -->
                     <input type="hidden" id="face-data" name="face_data" value="">
+                </div>
+
+                <!-- Modal for Auto-Capture & Preview -->
+                <div id="capture-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+                    <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Face Enrollment</h3>
+                        <p class="text-sm text-gray-600 mb-4">Follow on‑screen guidance. We will automatically capture 5 poses.</p>
+                        <div class="mb-3">
+                            <div class="text-blue-800 font-medium mb-2" id="pose-instruction">Front face → Look straight at the camera.</div>
+                            <div class="mb-2 flex gap-2">
+                                <select id="camera-select" class="flex-1 border rounded-lg px-3 py-2 text-sm"></select>
+                                <button type="button" id="refresh-cameras" class="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg text-sm">Refresh</button>
+                            </div>
+                            <video id="camera-feed" class="w-full h-64 bg-gray-100 rounded-lg" autoplay playsinline></video>
+                            <canvas id="camera-canvas" class="hidden"></canvas>
+                            <div id="camera-status" class="mt-3 p-2 rounded-lg hidden"><p class="text-sm font-medium"></p></div>
+                        </div>
+                        <div id="preview-grid" class="grid grid-cols-5 gap-2 mb-3"></div>
+                        <div id="pose-progress" class="text-sm text-gray-700 mb-3 grid grid-cols-1 gap-1">
+                            <div data-pose="front">Front: Waiting...</div>
+                            <div data-pose="left">Left: Waiting...</div>
+                            <div data-pose="right">Right: Waiting...</div>
+                            <div data-pose="up">Up: Waiting...</div>
+                            <div data-pose="down">Down: Waiting...</div>
+                        </div>
+                        <div class="flex justify-end gap-2">
+                            <button type="button" id="modal-cancel" class="px-4 py-2 rounded-lg border">Cancel</button>
+                            <button type="button" id="modal-continue" class="px-4 py-2 rounded-lg bg-blue-600 text-white" disabled>Continue</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Submit Buttons -->
@@ -247,6 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const classSelect = document.getElementById('class_id');
     const submitBtn = document.getElementById('submit-btn');
     const faceDataInput = document.getElementById('face-data');
+    let posesComplete = false;
     
     // Show/hide fields based on role selection
     roleSelect.addEventListener('change', function() {
@@ -267,6 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Disable submit button for students until face data is captured
             submitBtn.disabled = true;
             submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            // Do not auto-open capture modal; user will click Start Camera
         } else if (selectedRole === 'teacher') {
             // Teachers might be assigned to classes later
             classAssignment.classList.remove('hidden');
@@ -312,28 +331,73 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         
-        // Check if student role requires face data
-        if (roleSelect.value === 'student') {
-            if (!faceDataInput.value) {
-                e.preventDefault();
-                alert('Face capture is required for students! Please capture or upload a photo.');
-                return false;
-            }
+        // Check if student role requires full pose capture (not hidden input)
+        if (roleSelect.value === 'student' && !posesComplete) {
+            e.preventDefault();
+            alert('Face capture is required for students! Please capture all 5 poses.');
+            return false;
         }
     });
     
-    // Override the saveFaceData function for form submission
-    const originalSaveFaceData = window.saveFaceData;
-    window.saveFaceData = function() {
-        if (window.capturedImageData) {
-            faceDataInput.value = window.capturedImageData;
-            showStatus('upload-status', 'Face data captured successfully!', 'success');
-            return true;
-        } else {
-            alert('No image data to save');
-            return false;
+    // Enable submit when all poses are captured
+    window.addEventListener('all-poses-captured', function() {
+        // Render previews
+        const grid = document.getElementById('preview-grid');
+        if (grid && window.CapturedPoses) {
+            grid.innerHTML = '';
+            const order = ['front','left','right','up','down'];
+            order.forEach(p => {
+                const img = document.createElement('img');
+                img.className = 'w-full h-20 object-cover rounded';
+                img.alt = p;
+                img.src = window.CapturedPoses[p] || '';
+                grid.appendChild(img);
+            });
         }
-    };
+        // Enable continue
+        const btn = document.getElementById('modal-continue');
+        if (btn) btn.disabled = false;
+        posesComplete = true;
+        updateFaceDataStatus(true, 'All poses captured. You can submit the form.');
+    });
+
+    // Update per-pose progress when captured
+    window.addEventListener('pose-captured', function(e) {
+        const pose = e.detail?.pose;
+        const el = document.querySelector(`#pose-progress [data-pose="${pose}"]`);
+        if (el) el.textContent = `${pose.charAt(0).toUpperCase()+pose.slice(1)}: Processed ✅`;
+    });
+
+    // Modal controls
+    const modal = document.getElementById('capture-modal');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const continueBtn = document.getElementById('modal-continue');
+    const openModalBtn = document.getElementById('open-capture-modal');
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', () => {
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                if (window.startCameraAuto) window.startCameraAuto();
+            }
+        });
+    }
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            if (modal) modal.classList.add('hidden');
+        });
+    }
+    if (continueBtn) {
+        continueBtn.addEventListener('click', async () => {
+            // Hide modal and signal ready
+            if (modal) modal.classList.add('hidden');
+            if (posesComplete) {
+                updateFaceDataStatus(true, 'Face data ready.');
+            } else {
+                updateFaceDataStatus(false);
+            }
+        });
+    }
     
     // Function to update face data status
     function updateFaceDataStatus(isReady, message = '') {

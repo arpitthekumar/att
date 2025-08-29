@@ -61,12 +61,12 @@ class UserService:
         """Get all users, optionally filtered by role"""
         return self.user_model.get_all(role)
     
-    def capture_user_face(self, user_id, method='camera', image_data=None):
-        """Capture face data for a user with quality validation"""
-        return self.face_recognition.capture_face(user_id, method, image_data)
+    def capture_user_face(self, user_id, method='camera', image_data=None, pose='front'):
+        """Capture face data/embedding for a user with quality validation"""
+        return self.face_recognition.capture_face(user_id, method, image_data, pose)
     
-    def validate_face_quality(self, image_data):
-        """Validate face quality from image data"""
+    def validate_face_quality(self, image_data, pose=None):
+        """Validate face quality from image data, with optional pose guidance"""
         try:
             # Decode base64 image data
             if image_data.startswith('data:image'):
@@ -76,7 +76,7 @@ class UserService:
             image = Image.open(io.BytesIO(image_bytes))
             opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
             
-            return self.face_recognition.validate_face_quality(opencv_image)
+            return self.face_recognition.validate_face_quality(opencv_image, pose)
         except Exception as e:
             return False, f"Error validating image: {str(e)}"
     
@@ -87,6 +87,24 @@ class UserService:
     def has_face_data(self, user_id):
         """Check if user has face data"""
         return self.face_recognition.has_face_data(user_id)
+
+    def backfill_embeddings_from_image(self, user_id, poses=("front",)):
+        """If a legacy face image exists, compute embeddings for given poses using same image."""
+        from PIL import Image
+        import os
+        import numpy as np
+        import cv2
+        face_path = os.path.join(self.face_recognition.faces_dir, f'user_{user_id}.jpg')
+        if not os.path.exists(face_path):
+            return False, "No legacy face image found"
+        image = Image.open(face_path)
+        opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        vector = self.face_recognition.compute_embedding_from_image(opencv_image)
+        if vector is None:
+            return False, "Failed to compute embedding from image"
+        for p in poses:
+            self.face_recognition.store_embedding(user_id, p, vector)
+        return True, f"Backfilled embeddings for poses: {', '.join(poses)}"
     
     def get_user_activity(self, user_id, limit=50):
         """Get activity for a specific user"""

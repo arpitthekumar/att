@@ -615,11 +615,12 @@ def validate_face_quality():
     try:
         data = request.get_json()
         image_data = data.get('image_data')
+        pose = data.get('pose')
         
         if not image_data:
             return jsonify({'success': False, 'message': 'No image data provided'})
         
-        is_valid, message = user_service.validate_face_quality(image_data)
+        is_valid, message = user_service.validate_face_quality(image_data, pose)
         return jsonify({'success': is_valid, 'message': message})
         
     except Exception as e:
@@ -628,14 +629,15 @@ def validate_face_quality():
 @app.route('/api/capture-face', methods=['POST'])
 @login_required
 def capture_face():
-    """API endpoint to capture face data"""
+    """API endpoint to capture face data or multi-pose embedding"""
     try:
         data = request.get_json()
         method = data.get('method', 'camera')
         image_data = data.get('image_data')
+        pose = data.get('pose', 'front')
         
         if method == 'upload' and image_data:
-            success, result = user_service.capture_user_face(session['user_id'], 'upload', image_data)
+            success, result = user_service.capture_user_face(session['user_id'], 'upload', image_data, pose)
         else:
             success, result = user_service.capture_user_face(session['user_id'], 'camera')
         
@@ -653,6 +655,18 @@ def face_data_info():
         return jsonify(info)
     except Exception as e:
         return jsonify({'exists': False, 'error': str(e)})
+
+@app.route('/api/backfill-face-embeddings', methods=['POST'])
+@admin_required
+def backfill_face_embeddings():
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id') or session.get('user_id')
+        poses = data.get('poses', ['front'])
+        success, message = user_service.backfill_embeddings_from_image(int(user_id), poses)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Error: {str(e)}'})
 
 @app.route('/api/delete-face-data', methods=['DELETE'])
 @login_required

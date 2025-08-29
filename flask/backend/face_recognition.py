@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 from deepface import DeepFace
+from .database import Database
+from .models import FaceEmbedding
+import json
 import os
 from datetime import datetime
 import base64
@@ -8,16 +11,46 @@ from PIL import Image
 import io
 
 class FaceRecognition:
-    def __init__(self, faces_dir='faces'):
+    def __init__(self, faces_dir='faces', model_name='Facenet'):
         self.faces_dir = faces_dir
+        self.model_name = model_name  # e.g., 'Facenet', 'ArcFace', 'VGG-Face'
         self.cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        self.db = Database()
+        self.embedding_model = FaceEmbedding(self.db)
         
         # Create faces directory if it doesn't exist
         if not os.path.exists(faces_dir):
             os.makedirs(faces_dir)
+
+    def set_model(self, model_name):
+        self.model_name = model_name
+
+    def compute_embedding_from_image(self, image_bgr):
+        # DeepFace.represent expects RGB
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+        reps = DeepFace.represent(img_path=image_rgb, enforce_detection=False, model_name=self.model_name)
+        if isinstance(reps, list) and len(reps) > 0:
+            vector = reps[0]['embedding'] if isinstance(reps[0], dict) and 'embedding' in reps[0] else reps[0]
+            return vector
+        return None
+
+    def store_embedding(self, user_id, pose, vector):
+        embedding_text = json.dumps(vector)
+        self.embedding_model.upsert_embedding(user_id, pose, self.model_name, embedding_text)
+        return True
+
+    def get_user_embeddings(self, user_id):
+        rows = self.embedding_model.get_user_embeddings(user_id, self.model_name)
+        embeddings_by_pose = {}
+        for row in rows:
+            try:
+                embeddings_by_pose[row['pose']] = json.loads(row['embedding'])
+            except Exception:
+                pass
+        return embeddings_by_pose
     
-    def validate_face_quality(self, image):
-        """Validate face quality - check for full face, good lighting, etc."""
+    def validate_face_quality(self, image, pose=None):
+        """Validate face quality and optionally enforce pose guidance (front/left/right/up/down)."""
         try:
             # Convert to grayscale for face detection
             if len(image.shape) == 3:
@@ -58,8 +91,22 @@ class FaceRecognition:
             tolerance_x = image.shape[1] * 0.3
             tolerance_y = image.shape[0] * 0.3
             
-            if abs(center_x - image_center_x) > tolerance_x or abs(center_y - image_center_y) > tolerance_y:
-                return False, "Face not centered. Please position your face in the center."
+            if pose in (None, '', 'front'):
+                # For front, require stricter centering
+                if abs(center_x - image_center_x) > tolerance_x * 0.4 or abs(center_y - image_center_y) > tolerance_y * 0.4:
+                    return False, "Center your face inside the circle."
+            elif pose == 'left':
+                if not (center_x < image_center_x - tolerance_x * 0.15):
+                    return False, "Turn your head slightly left."
+            elif pose == 'right':
+                if not (center_x > image_center_x + tolerance_x * 0.15):
+                    return False, "Turn your head slightly right."
+            elif pose == 'up':
+                if not (center_y < image_center_y - tolerance_y * 0.15):
+                    return False, "Tilt your head up."
+            elif pose == 'down':
+                if not (center_y > image_center_y + tolerance_y * 0.15):
+                    return False, "Tilt your head down."
             
             # Check lighting (brightness and contrast)
             face_roi = gray[y:y+h, x:x+w]
@@ -172,7 +219,7 @@ class FaceRecognition:
         else:
             return False, "Face capture cancelled"
     
-    def capture_face_from_upload(self, user_id, image_data):
+    def capture_face_from_upload(self, user_id, image_data, pose='front', persist_image=True):
         """Capture face from uploaded image with quality validation"""
         try:
             # Decode base64 image data
@@ -193,30 +240,37 @@ class FaceRecognition:
             if not is_valid:
                 return False, message
             
-            # Save the image
-            face_path = os.path.join(self.faces_dir, f'user_{user_id}.jpg')
-            cv2.imwrite(face_path, opencv_image)
+            # Optionally save the image
+            face_path = None
+            if persist_image:
+                face_path = os.path.join(self.faces_dir, f'user_{user_id}.jpg')
+                cv2.imwrite(face_path, opencv_image)
+
+            # Compute and store embedding for the specified pose
+            vector = self.compute_embedding_from_image(opencv_image)
+            if vector is None:
+                return False, "Failed to compute face embedding"
+            self.store_embedding(user_id, pose, vector)
             
-            return True, face_path
+            return True, face_path or "embedding_saved"
             
         except Exception as e:
             return False, f"Error processing uploaded image: {str(e)}"
     
-    def capture_face(self, user_id, method='camera', image_data=None):
+    def capture_face(self, user_id, method='camera', image_data=None, pose='front'):
         """Main face capture method - supports both camera and upload"""
         if method == 'camera':
             return self.capture_face_from_camera(user_id)
         elif method == 'upload' and image_data:
-            return self.capture_face_from_upload(user_id, image_data)
+            return self.capture_face_from_upload(user_id, image_data, pose=pose)
         else:
             return False, "Invalid capture method"
     
-    def recognize_face(self, user_id, max_attempts=5):
-        """Recognize a face against stored face data with quality validation"""
-        face_path = os.path.join(self.faces_dir, f'user_{user_id}.jpg')
-        
-        if not os.path.exists(face_path):
-            return False, "No face data found for this user"
+    def recognize_face(self, user_id, max_attempts=5, distance_threshold=0.9):
+        """Recognize using stored embeddings; compare live embedding to user's multi-pose embeddings"""
+        stored = self.get_user_embeddings(user_id)
+        if not stored:
+            return False, "No embeddings found for this user"
         
         cap = cv2.VideoCapture(0)
         
@@ -253,25 +307,30 @@ class FaceRecognition:
                     break
                 continue
             
-            # Save current frame for comparison
-            temp_path = os.path.join(self.faces_dir, 'temp_capture.jpg')
-            cv2.imwrite(temp_path, frame)
-            
+            # Compute live embedding from frame
             try:
-                # Compare faces using DeepFace
-                result = DeepFace.verify(img1_path=face_path, 
-                                       img2_path=temp_path, 
-                                       enforce_detection=False,
-                                       model_name="VGG-Face",
-                                       distance_metric="cosine")
-                
-                if result['verified'] and result['distance'] < 0.4:  # Stricter threshold
+                live_vector = self.compute_embedding_from_image(frame)
+                if live_vector is None:
+                    attempts += 1
+                    continue
+
+                # Compare with all stored pose embeddings
+                min_distance = 999.0
+                for pose_key, stored_vector in stored.items():
+                    # Cosine distance between unit-normalized vectors
+                    a = np.array(live_vector, dtype=np.float32)
+                    b = np.array(stored_vector, dtype=np.float32)
+                    denom = (np.linalg.norm(a) * np.linalg.norm(b)) + 1e-8
+                    dist = 1.0 - float(np.dot(a, b) / denom)
+                    if dist < min_distance:
+                        min_distance = dist
+
+                if min_distance < distance_threshold:
                     recognition_success = True
-                    print(f"Face recognized! Distance: {result['distance']:.3f}")
+                    print(f"Face recognized! Min distance: {min_distance:.3f}")
                     break
                 else:
-                    print(f"Recognition failed. Distance: {result['distance']:.3f}")
-                
+                    print(f"Recognition failed. Min distance: {min_distance:.3f}")
             except Exception as e:
                 print(f"Face recognition error: {e}")
             
@@ -297,19 +356,14 @@ class FaceRecognition:
         cap.release()
         cv2.destroyAllWindows()
         
-        # Clean up temp file
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        
         if recognition_success:
             return True, "Face recognized successfully"
         else:
             return False, f"Face recognition failed after {attempts} attempts"
     
     def has_face_data(self, user_id):
-        """Check if a user has face data stored"""
-        face_path = os.path.join(self.faces_dir, f'user_{user_id}.jpg')
-        return os.path.exists(face_path)
+        """Check if a user has embeddings stored"""
+        return self.embedding_model.has_any_embeddings(user_id)
     
     def delete_face_data(self, user_id):
         """Delete face data for a user"""
@@ -320,16 +374,14 @@ class FaceRecognition:
         return False
     
     def get_face_data_info(self, user_id):
-        """Get information about stored face data"""
-        face_path = os.path.join(self.faces_dir, f'user_{user_id}.jpg')
-        if os.path.exists(face_path):
-            # Get file info
-            stat = os.stat(face_path)
+        """Get information about stored embeddings"""
+        rows = self.embedding_model.get_user_embeddings(user_id)
+        if rows:
+            poses = [row['pose'] for row in rows]
             return {
                 'exists': True,
-                'path': face_path,
-                'size': stat.st_size,
-                'created': datetime.fromtimestamp(stat.st_ctime),
-                'modified': datetime.fromtimestamp(stat.st_mtime)
+                'model': self.model_name,
+                'poses': poses,
+                'count': len(rows)
             }
         return {'exists': False}

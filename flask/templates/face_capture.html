@@ -36,6 +36,7 @@
                 </ul>
             </div>
         </div>
+        <div class="mt-4 text-blue-800 font-medium" id="pose-instruction">Front face → Look straight at the camera.</div>
     </div>
 
     <!-- Capture Methods -->
@@ -46,6 +47,13 @@
                 <i class="fas fa-camera text-blue-600 mr-2"></i>Camera Capture
             </h3>
             <p class="text-gray-600 mb-4">Use your device's camera to capture your face in real-time.</p>
+            <div class="mb-3">
+                <label for="camera-select" class="block text-sm font-medium text-gray-700 mb-1">Select Camera</label>
+                <div class="flex gap-2">
+                    <select id="camera-select" class="flex-1 border rounded-lg px-3 py-2 text-sm"></select>
+                    <button id="refresh-cameras" class="bg-gray-200 text-gray-800 px-3 py-2 rounded-lg text-sm">Refresh</button>
+                </div>
+            </div>
             
             <div id="camera-container" class="mb-4">
                 <video id="camera-feed" class="w-full h-64 bg-gray-100 rounded-lg" autoplay playsinline></video>

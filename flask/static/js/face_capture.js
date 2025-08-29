@@ -1,3 +1,257 @@
+// Multi-pose guided capture
+const poses = [
+  { key: 'front', text: 'Front face → Look straight at the camera.' },
+  { key: 'left', text: 'Left profile → Turn your head slightly left.' },
+  { key: 'right', text: 'Right profile → Turn your head slightly right.' },
+  { key: 'up', text: 'Upward face → Tilt your head up.' },
+  { key: 'down', text: 'Downward face → Tilt your head down.' }
+];
+
+let currentIndex = 0;
+window.CapturedPoses = {};
+
+function updateInstruction(status) {
+  const el = document.getElementById('pose-instruction');
+  if (!el) return;
+  const prefix = status ? `${status} ` : '';
+  el.innerText = `${prefix}${poses[currentIndex].text}`;
+}
+
+async function captureCurrentPose(base64Image) {
+  const pose = poses[currentIndex].key;
+  const resp = await fetch('/api/capture-face', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ method: 'upload', image_data: base64Image, pose })
+  });
+  const data = await resp.json();
+  if (data.success) {
+    updateInstruction('✅');
+    try { window.CapturedPoses[pose] = base64Image; } catch (_) {}
+    currentIndex += 1;
+    // Notify listeners a pose was captured
+    try { window.dispatchEvent(new CustomEvent('pose-captured', { detail: { index: currentIndex, pose, image: base64Image } })); } catch (_) {}
+    if (currentIndex < poses.length) {
+      setTimeout(() => updateInstruction(''), 600);
+    }
+    if (currentIndex >= poses.length) {
+      try { window.dispatchEvent(new CustomEvent('all-poses-captured', { detail: { total: poses.length, images: window.CapturedPoses } })); } catch (_) {}
+    }
+  } else {
+    updateInstruction('❌');
+  }
+  return data.success;
+}
+
+// Expose init for pages
+window.MultiPoseCapture = {
+  getCurrentPose: () => poses[currentIndex]?.key,
+  getRemaining: () => poses.slice(currentIndex).map(p => p.key),
+  reset: () => { currentIndex = 0; updateInstruction(''); },
+  updateInstruction,
+  captureCurrentPose
+};
+
+// Wire up existing UI if present
+document.addEventListener('DOMContentLoaded', () => {
+  updateInstruction('');
+
+  const video = document.getElementById('camera-feed');
+  const canvas = document.getElementById('camera-canvas');
+  const startBtn = document.getElementById('start-camera');
+  const stopBtn = document.getElementById('stop-camera');
+  const captureBtn = document.getElementById('capture-photo');
+  const statusBox = document.querySelector('#camera-status p');
+  const cameraSelect = document.getElementById('camera-select');
+  const refreshBtn = document.getElementById('refresh-cameras');
+
+  const uploadInput = document.getElementById('photo-upload');
+  const uploadBtn = document.getElementById('upload-photo');
+  const previewImg = document.getElementById('preview-image');
+  const uploadPreview = document.getElementById('upload-preview');
+
+  let streamRef = null;
+  let currentDeviceId = null;
+
+  function setStatus(text, ok = true) {
+    if (!statusBox) return;
+    statusBox.parentElement.classList.remove('hidden');
+    statusBox.innerText = text;
+    statusBox.parentElement.className = ok
+      ? 'mt-4 p-3 rounded-lg bg-green-50 text-green-700'
+      : 'mt-4 p-3 rounded-lg bg-red-50 text-red-700';
+  }
+
+  function snapshotBase64() {
+    if (!canvas || !video) return null;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg');
+  }
+
+  async function startCameraAuto() {
+    try {
+      const constraints = currentDeviceId ? { video: { deviceId: { exact: currentDeviceId } } } : { video: true };
+      streamRef = await navigator.mediaDevices.getUserMedia(constraints);
+      if (video) video.srcObject = streamRef;
+      if (captureBtn) captureBtn.classList.add('hidden');
+      if (stopBtn) stopBtn.classList.remove('hidden');
+      if (startBtn) startBtn.classList.add('hidden');
+      setStatus('Camera started. Follow instructions.');
+      runAutoCaptureLoop();
+    } catch (e) {
+      setStatus('Camera error: ' + e.message, false);
+    }
+  }
+  // Expose for external calls (e.g., modal auto-start)
+  window.startCameraAuto = startCameraAuto;
+
+  if (startBtn) {
+    startBtn.addEventListener('click', startCameraAuto);
+  }
+
+  if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+      if (streamRef) {
+        streamRef.getTracks().forEach(t => t.stop());
+        streamRef = null;
+      }
+      if (video) video.srcObject = null;
+      if (captureBtn) captureBtn.classList.add('hidden');
+      stopBtn.classList.add('hidden');
+      if (startBtn) startBtn.classList.remove('hidden');
+      setStatus('Camera stopped.');
+    });
+  }
+
+  async function populateCameras() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      if (cameraSelect) {
+        cameraSelect.innerHTML = '';
+        videoInputs.forEach((d, idx) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Camera ${idx + 1}`;
+          cameraSelect.appendChild(opt);
+        });
+        if (videoInputs.length > 0) {
+          currentDeviceId = videoInputs[0].deviceId;
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      await populateCameras();
+      setStatus('Camera list refreshed.');
+    });
+  }
+
+  if (cameraSelect) {
+    cameraSelect.addEventListener('change', (e) => {
+      currentDeviceId = e.target.value;
+    });
+  }
+
+  // Try to get permission once to populate labels
+  (async () => {
+    try {
+      const tmp = await navigator.mediaDevices.getUserMedia({ video: true });
+      tmp.getTracks().forEach(t => t.stop());
+    } catch (e) { /* ignore */ }
+    await populateCameras();
+  })();
+
+  // Auto-capture loop: checks quality for current pose and captures automatically
+  async function validatePose(image, pose) {
+    try {
+      const resp = await fetch('/api/validate-face-quality', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_data: image, pose })
+      });
+      const data = await resp.json();
+      return data;
+    } catch (e) {
+      return { success: false, message: e.message };
+    }
+  }
+
+  let autoLoopRunning = false;
+  async function runAutoCaptureLoop() {
+    if (autoLoopRunning) return;
+    autoLoopRunning = true;
+    updateInstruction('');
+    while (autoLoopRunning && window.MultiPoseCapture.getRemaining().length > 0) {
+      const currentPose = window.MultiPoseCapture.getCurrentPose();
+      const img = snapshotBase64();
+      if (!img) { await new Promise(r => setTimeout(r, 300)); continue; }
+      const check = await validatePose(img, currentPose);
+      if (check.success) {
+        setStatus('Good! Capturing ' + currentPose + '...');
+        const saved = await captureCurrentPose(img);
+        if (saved && window.MultiPoseCapture.getRemaining().length === 0) {
+          setStatus('All poses captured!', true);
+          break;
+        }
+        await new Promise(r => setTimeout(r, 400));
+      } else {
+        setStatus(check.message || ('Adjust for ' + currentPose), false);
+        await new Promise(r => setTimeout(r, 400));
+      }
+    }
+    autoLoopRunning = false;
+  }
+
+  if (captureBtn) {
+    captureBtn.addEventListener('click', async () => {
+      const img = snapshotBase64();
+      if (!img) return;
+      const ok = await captureCurrentPose(img);
+      setStatus(ok ? 'Pose saved.' : 'Failed to save pose.', ok);
+      if (ok && window.MultiPoseCapture.getRemaining().length === 0) {
+        setStatus('All poses captured!', true);
+      }
+    });
+  }
+
+  if (uploadInput) {
+    uploadInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (previewImg) previewImg.src = reader.result;
+        if (uploadPreview) uploadPreview.classList.remove('hidden');
+        if (uploadBtn) uploadBtn.classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (uploadBtn) {
+    uploadBtn.addEventListener('click', async () => {
+      const src = previewImg ? previewImg.src : null;
+      if (!src) return;
+      const ok = await captureCurrentPose(src);
+      const box = document.querySelector('#upload-status p');
+      if (box) {
+        box.parentElement.classList.remove('hidden');
+        box.innerText = ok ? 'Pose saved and processed.' : 'Failed to save pose.';
+        box.parentElement.className = ok
+          ? 'mt-4 p-3 rounded-lg bg-green-50 text-green-700'
+          : 'mt-4 p-3 rounded-lg bg-red-50 text-red-700';
+      }
+    });
+  }
+});
+
 let stream = null;
 let capturedImageData = null;
 

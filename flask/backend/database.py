@@ -90,6 +90,23 @@ class Database:
                 print("Adding 'created_at' column to students table...")
                 cursor.execute('ALTER TABLE students ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP')
             
+            # Ensure face_embeddings table exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='face_embeddings'")
+            if not cursor.fetchone():
+                print("Creating face_embeddings table...")
+                cursor.execute('''
+                    CREATE TABLE face_embeddings (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        pose TEXT NOT NULL, -- front, left, right, up, down
+                        model_name TEXT NOT NULL, -- Facenet, ArcFace, etc.
+                        embedding TEXT NOT NULL, -- JSON or comma-separated vector
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE(user_id, pose, model_name),
+                        FOREIGN KEY (user_id) REFERENCES users (id)
+                    )
+                ''')
+            
             # Check if user_activity table exists
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_activity'")
             if not cursor.fetchone():
@@ -185,6 +202,20 @@ class Database:
                 user_id INTEGER NOT NULL,
                 face_image TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+
+        # Face embeddings table (multi-pose, model-specific)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS face_embeddings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                pose TEXT NOT NULL, -- front, left, right, up, down
+                model_name TEXT NOT NULL, -- Facenet, ArcFace, etc.
+                embedding TEXT NOT NULL, -- JSON or comma-separated vector
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, pose, model_name),
                 FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
