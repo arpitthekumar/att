@@ -109,7 +109,7 @@ def view_classes():
     conn.close()
     print()
 
-    
+
 def create_class():
     print("\n--- Create Class ---")
     name = input("Class Name: ")
@@ -252,7 +252,10 @@ def admin_dashboard():
         print("\n=== Admin Dashboard ===")
         print("1. Register Teacher\n2. Register Student\n3. Create Class\n4. Assign Student to Class")
         print("5. Unassign Student from Class\n6. Delete User\n7. Delete Class")
-        print("8. View Activities\n9. View All Attendance\n10. Logout")
+        print("8. View Activities\n9. View All Attendance")
+        print("10. View Users\n11. View Classes")
+        print("12. Logout")
+
         choice = input("Enter choice: ")
         if choice == "1":
             register_teacher()
@@ -273,5 +276,11 @@ def admin_dashboard():
         elif choice == "9":
             view_all_attendance()
         elif choice == "10":
+            view_users()
+        elif choice == "11":
+            view_classes()
+        elif choice == "12":
             print("👋 Logged out.\n")
             break
+        else:
+            print("❌ Invalid choice, try again.\n")
