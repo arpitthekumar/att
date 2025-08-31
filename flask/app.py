@@ -12,6 +12,14 @@ from backend.services import UserService, ClassService, AttendanceService, Class
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'
 
+# Register blueprints
+from routes import auth, admin, teacher, student, api
+app.register_blueprint(auth.bp)
+app.register_blueprint(admin.bp)
+app.register_blueprint(teacher.bp)
+app.register_blueprint(student.bp)
+app.register_blueprint(api.bp)
+
 # Add custom filters
 @app.template_filter('datetime')
 def format_datetime(value):

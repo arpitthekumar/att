@@ -297,6 +297,44 @@ class AttendanceService:
         # First verify the user has face data
         if not self.face_recognition.has_face_data(user_id):
             return False, "No face data found for this user. Please capture face data first."
+            
+    def save_attendance_batch(self, class_id, attendance_date, records, marked_by):
+        """Save batch attendance records for a class"""
+        try:
+            # Validate inputs
+            if not class_id or not records:
+                return False, "Missing required parameters"
+                
+            # Format date if needed
+            if isinstance(attendance_date, str):
+                attendance_date = attendance_date.split('T')[0]  # Handle ISO format
+                
+            # Process each record
+            success_count = 0
+            for record in records:
+                student_id = record.get('student_id')
+                status = record.get('status')
+                timestamp = record.get('timestamp')
+                attendance_type = record.get('type', 'Regular')
+                remarks = record.get('remarks', '')
+                
+                if student_id and status:
+                    # Mark attendance for this student
+                    self.attendance_model.mark_attendance(
+                        student_id, 
+                        class_id, 
+                        attendance_date, 
+                        status, 
+                        marked_by, 
+                        remarks, 
+                        attendance_type
+                    )
+                    success_count += 1
+            
+            return True, f"Successfully saved {success_count} attendance records"
+            
+        except Exception as e:
+            return False, f"Error saving attendance: {str(e)}"
         
         # Check if attendance already marked for today
         today = date.today()

@@ -84,7 +84,7 @@
                     
                     <!-- Face Detection Overlay -->
                     <div id="face-overlay" class="absolute inset-0 pointer-events-none">
-                        <div id="face-box" class="border-2 border-green-500 rounded-lg hidden"></div>
+                        <canvas id="face-box" class="absolute inset-0 w-full h-full"></canvas>
                     </div>
                 </div>
                 
@@ -101,7 +101,7 @@
             <!-- Recognition Status -->
             <div>
                 <h3 class="text-lg font-semibold text-gray-900 mb-3">Recognition Status</h3>
-                <div id="recognition-status" class="bg-gray-50 rounded-lg p-4 min-h-64">
+                <div id="recognition-status" class="bg-gray-50 rounded-lg p-4 min-h-64 flex flex-col justify-center">
                     <div class="text-center text-gray-500">
                         <i class="fas fa-user-slash text-4xl mb-2"></i>
                         <p>No face detected</p>
@@ -177,7 +177,6 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
@@ -203,18 +202,21 @@
                                 Not Marked
                             </span>
                         </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 attendance-type">
+                            -
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 attendance-time">
                             -
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div class="flex space-x-2">
-                                <button type="button" class="mark-present text-green-600 hover:text-green-900" onclick="markAttendance('{{ student.id }}', 'present')">
+                                <button type="button" class="mark-present text-green-600 hover:text-green-900" onclick="window.markAttendance('{{ student.id }}', 'present')">
                                     <i class="fas fa-check"></i>
                                 </button>
-                                <button type="button" class="mark-absent text-red-600 hover:text-red-900" onclick="markAttendance('{{ student.id }}', 'absent')">
+                                <button type="button" class="mark-absent text-red-600 hover:text-red-900" onclick="window.markAttendance('{{ student.id }}', 'absent')">
                                     <i class="fas fa-times"></i>
                                 </button>
-                                <button type="button" class="mark-late text-yellow-600 hover:text-yellow-900" onclick="markAttendance('{{ student.id }}', 'late')">
+                                <button type="button" class="mark-late text-yellow-600 hover:text-yellow-900" onclick="window.markAttendance('{{ student.id }}', 'late')">
                                     <i class="fas fa-clock"></i>
                                 </button>
                             </div>
@@ -226,36 +228,72 @@
         </div>
     </div>
 
-    <!-- Temporary Attendance Section -->
+    <!-- Attendance Review Section -->
     <div class="bg-white rounded-xl shadow-lg p-6 mt-6">
-        <h2 class="text-xl font-bold mb-2">Temporary Attendance (Live Preview)</h2>
-        <div id="temp-attendance-list">
-            {% if temp_attendance %}
-            <table class="table-auto w-full">
-                <thead>
-                    <tr><th>Student ID</th><th>Status</th><th>Edit</th></tr>
-                </thead>
-                <tbody>
-                {% for record in temp_attendance %}
-                    <tr>
-                        <td>{{ record['student_id'] }}</td>
-                        <td>{{ record['status'] }}</td>
-                        <td>
-                            <select name="status_{{ record['student_id'] }}">
-                                <option value="Present (Temporary)" {% if record['status'] == 'Present (Temporary)' %}selected{% endif %}>Present (Temporary)</option>
-                                <option value="Absent (Temporary)" {% if record['status'] == 'Absent (Temporary)' %}selected{% endif %}>Absent (Temporary)</option>
-                            </select>
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-            <form method="post" action="{{ url_for('review_attendance', session_id=session_id) }}">
-                <button type="submit" class="btn btn-primary mt-4">Review Attendance</button>
-            </form>
-            {% else %}
-            <p>No temporary attendance records yet. Start camera and scan faces to populate.</p>
-            {% endif %}
+        <h2 class="text-xl font-bold text-gray-900 mb-4">
+            <i class="fas fa-clipboard-check text-blue-600 mr-2"></i>Attendance Review
+        </h2>
+        
+        <div id="attendance-review">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Present Students -->
+                <div class="bg-green-50 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-green-800 mb-3 flex items-center">
+                        <i class="fas fa-check-circle mr-2"></i>Present Students
+                    </h3>
+                    <div id="present-students-list" class="max-h-64 overflow-y-auto">
+                        <div class="text-center text-gray-500 py-4">
+                            <p>No students marked present yet</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Absent Students -->
+                <div class="bg-red-50 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold text-red-800 mb-3 flex items-center">
+                        <i class="fas fa-times-circle mr-2"></i>Absent Students
+                    </h3>
+                    <div id="absent-students-list" class="max-h-64 overflow-y-auto">
+                        <div class="text-center text-gray-500 py-4">
+                            <p>No students marked absent yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Late Students -->
+            <div class="bg-yellow-50 rounded-lg p-4 mb-6">
+                <h3 class="text-lg font-semibold text-yellow-800 mb-3 flex items-center">
+                    <i class="fas fa-clock mr-2"></i>Late Students
+                </h3>
+                <div id="late-students-list" class="max-h-64 overflow-y-auto">
+                    <div class="text-center text-gray-500 py-4">
+                        <p>No students marked late yet</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Unrecognized Faces -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                    <i class="fas fa-question-circle mr-2"></i>Unrecognized Faces
+                </h3>
+                <div id="unrecognized-faces-list" class="max-h-64 overflow-y-auto">
+                    <div class="text-center text-gray-500 py-4">
+                        <p>No unrecognized faces detected</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex justify-end space-x-4">
+                <button id="reset-attendance" class="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700 transition duration-200">
+                    <i class="fas fa-undo mr-2"></i>Reset Attendance
+                </button>
+                <button id="save-attendance" class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200">
+                    <i class="fas fa-save mr-2"></i>Save Attendance
+                </button>
+            </div>
         </div>
     </div>
 </div>
