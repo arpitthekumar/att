@@ -1,6 +1,5 @@
 import sqlite3
 import numpy as np
-from datetime import datetime
 
 DB_FILE = "school.db"
 
@@ -93,9 +92,10 @@ def load_encodings():
         ids.append(sid)
     return ids, encodings
 def log_activity(user_id, activity):
+    from datetime import datetime
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO activities (user_id, activity, timestamp) VALUES (?, ?, ?)", 
+    cur.execute("INSERT INTO activities (user_id, activity, timestamp) VALUES (?, ?, ?)",
                 (user_id, activity, datetime.now().isoformat()))
     conn.commit()
     conn.close()

@@ -14,7 +14,7 @@ def login():
 
     # Demo admin login
     if username in demo_users and demo_users[username]["password"] == password:
-        print("✅ Logged in as Admin (Demo Account)\n")
+        print("✅ Logged in as Admin \n")
         log_activity(0, "Admin login (demo)")
         return (0, "admin")
 
@@ -28,7 +28,7 @@ def login():
     if row:
         user_id, db_role, db_password = row
         if db_password == password:
-            print(f"✅ Logged in as {db_role.capitalize()} (DB User)\n")
+            print(f"✅ Logged in as {db_role.capitalize()} \n")
             log_activity(user_id, f"{db_role} login")
             return (user_id, db_role)
 
